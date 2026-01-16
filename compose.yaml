@@ -1,0 +1,11 @@
+﻿services:
+  ordering.api:
+    image: ordering.api
+    build:
+      context: ./src/Ordering
+      dockerfile: Ordering.Api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development

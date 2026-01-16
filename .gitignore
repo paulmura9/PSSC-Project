@@ -1,0 +1,71 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# NCrunch
+*.ncrunch*
+_NCrunch_*
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# User-specific files
+*.DotSettings.user
+
+# Service Bus / Azure credentials - DO NOT COMMIT
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.Development.json.example
+!**/appsettings.json.example
+
+# Local environment settings
+*.local.json
+*.secrets.json
+secrets.json
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Publish output
+publish/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+*.log

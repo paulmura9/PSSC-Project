@@ -1,0 +1,16 @@
+{
+}
+  }
+    "InvoicesConnectionString": "Endpoint=sb://YOUR_SERVICEBUS.servicebus.windows.net/;SharedAccessKeyName=YOUR_KEY_NAME;SharedAccessKey=YOUR_KEY"
+    "ShipmentsConnectionString": "Endpoint=sb://YOUR_SERVICEBUS.servicebus.windows.net/;SharedAccessKeyName=YOUR_KEY_NAME;SharedAccessKey=YOUR_KEY",
+  "ServiceBus": {
+  },
+    "psscDB": "Server=YOUR_SERVER;Database=YOUR_DB;User Id=YOUR_USER;Password=YOUR_PASSWORD;"
+  "ConnectionStrings": {
+  },
+    }
+      "Microsoft.Hosting.Lifetime": "Information"
+      "Default": "Information",
+    "LogLevel": {
+  "Logging": {
+

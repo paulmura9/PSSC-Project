@@ -1,0 +1,53 @@
+@Ordering.Api_HostAddress = http://localhost:5272
+
+
+### Place Order - Valid Request
+POST {{Ordering.Api_HostAddress}}/api/orders/place
+Content-Type: application/json
+
+{
+  "userId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "deliveryAddress": "123 Main Street, Apartment 4B",
+  "postalCode": "12345",
+  "phone": "+40721123456",
+  "cardNumber": "4111111111111111",
+  "cvv": "123",
+  "expiry": "12/25",
+  "products": [
+    {
+      "name": "Laptop Dell XPS 15",
+      "quantity": 1,
+      "unitPrice": 1299.99
+    },
+    {
+      "name": "USB-C Hub",
+      "quantity": 2,
+      "unitPrice": 49.99
+    },
+    {
+      "name": "Wireless Mouse",
+      "quantity": 1,
+      "unitPrice": 29.99
+    }
+  ]
+}
+
+###
+
+### Place Order - Invalid Request (missing required fields)
+POST {{Ordering.Api_HostAddress}}/api/orders/place
+Content-Type: application/json
+
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "deliveryAddress": "",
+  "postalCode": "",
+  "phone": "",
+  "cardNumber": "",
+  "cvv": "",
+  "expiry": "",
+  "products": []
+}
+
+###
+
