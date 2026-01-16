@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Ordering.Api - DDD Workflow Implementation
 
 This project implements a DDD (Domain-Driven Design) workflow for placing orders following the lab pattern with states, operations, results, and events.
@@ -156,6 +157,8 @@ The API will be available at:
 - Swagger UI: http://localhost:5272/swagger
 
 =======
+=======
+>>>>>>> 9b88eaab0e93d9fb0901f760bb61ca04b90cce00
 # PSSC Project
 
 ## Domain-Driven Design Based Distributed Workflow System
@@ -174,4 +177,7 @@ The project is developed as part of the **PSSC laboratory**, focusing on workflo
 
 
 <img width="1726" height="886" alt="image1" src="https://github.com/user-attachments/assets/723b127b-7d5c-4a3d-a4ea-1636910299fb" />
+<<<<<<< HEAD
+>>>>>>> 9b88eaab0e93d9fb0901f760bb61ca04b90cce00
+=======
 >>>>>>> 9b88eaab0e93d9fb0901f760bb61ca04b90cce00
