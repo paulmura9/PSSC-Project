@@ -4,65 +4,46 @@ using static Ordering.Domain.Models.Order;
 namespace Ordering.Domain.Operations;
 
 /// <summary>
-/// Operation that persists a priced order to the database
+/// Operation that persists a PersistableOrder to the database
+/// PersistableOrder -> PersistedOrder
 /// </summary>
-public class PersistOrderOperation : OrderOperation<IPersistence>
+public class PersistOrderOperation : OrderOperationWithState<IPersistence>
 {
-    protected override async Task<IOrder> OnPricedAsync(PricedOrder order, IPersistence persistence, CancellationToken cancellationToken)
+    protected override async Task<IOrder> OnPersistableAsync(PersistableOrder order, IPersistence persistence, CancellationToken cancellationToken)
     {
-        // Mask card number - show only last 4 digits
-        var cardNumberMasked = MaskCardNumber(order.CardNumber);
+        var orderId = await persistence.SaveOrderAsync(order, cancellationToken);
 
-        var persistableLines = order.Lines
-            .Select(line => new PersistableOrderLine(
+        // Convert PersistableOrderLines back to ValidatedOrderLines for PersistedOrder
+        var validatedLines = order.Lines
+            .Select(line => ValidatedOrderLine.Create(
                 line.Name,
+                line.Description,
+                line.Category,
                 line.Quantity,
-                line.UnitPrice,
-                line.LineTotal))
-            .ToList();
-
-        var persistableOrder = new PersistableOrder(
-            order.UserId,
-            order.DeliveryAddress,
-            order.PostalCode,
-            order.Phone,
-            cardNumberMasked,
-            order.TotalPrice,
-            persistableLines);
-
-        var orderId = await persistence.SaveOrderAsync(persistableOrder, cancellationToken);
+                line.UnitPrice))
+            .ToList()
+            .AsReadOnly();
 
         var persistedOrder = new PersistedOrder(
-            orderId,
-            order.Lines,
-            order.UserId,
-            order.DeliveryAddress,
-            order.PostalCode,
-            order.Phone,
-            order.TotalPrice,
-            DateTime.UtcNow);
+            orderId: orderId,
+            lines: validatedLines,
+            userId: order.UserId,
+            street: order.Street,
+            city: order.City,
+            postalCode: order.PostalCode,
+            phone: order.Phone,
+            email: order.Email,
+            subtotal: order.Subtotal,
+            discountAmount: order.DiscountAmount,
+            total: order.Total,
+            voucherCode: order.VoucherCode,
+            premiumSubscription: order.PremiumSubscription,
+            pickupMethod: new PickupMethod(order.PickupMethod),
+            pickupPointId: order.PickupPointId != null ? new PickupPointId(order.PickupPointId) : null,
+            paymentMethod: new PaymentMethod(order.PaymentMethod),
+            createdAt: DateTime.UtcNow);
 
         return persistedOrder;
-    }
-
-    private static string MaskCardNumber(string cardNumber)
-    {
-        if (string.IsNullOrWhiteSpace(cardNumber))
-        {
-            return string.Empty;
-        }
-
-        // Remove any spaces or dashes
-        var cleanedNumber = cardNumber.Replace(" ", "").Replace("-", "");
-        
-        if (cleanedNumber.Length <= 4)
-        {
-            return cleanedNumber;
-        }
-
-        // Show only last 4 digits
-        var maskedLength = cleanedNumber.Length - 4;
-        return new string('*', maskedLength) + cleanedNumber.Substring(maskedLength);
     }
 }
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Ordering.Domain.Models;
 using static Ordering.Domain.Models.Order;
 
@@ -5,24 +6,41 @@ namespace Ordering.Domain.Operations;
 
 /// <summary>
 /// Operation that calculates the total price for a validated order
+/// Includes voucher discount application
 /// </summary>
-public class PriceOrderOperation : OrderOperation
+public class PriceOrderOperation
 {
-    protected override Task<IOrder> OnValidatedAsync(ValidatedOrder order, CancellationToken cancellationToken)
+    private readonly ApplyVoucherOperation _applyVoucherOperation;
+    private readonly ILogger<PriceOrderOperation> _logger;
+
+    public PriceOrderOperation(
+        ApplyVoucherOperation applyVoucherOperation,
+        ILogger<PriceOrderOperation> logger)
     {
-        var totalPrice = order.Lines.Sum(line => line.LineTotal);
+        _applyVoucherOperation = applyVoucherOperation;
+        _logger = logger;
+    }
 
-        var pricedOrder = new PricedOrder(
-            order.Lines,
-            order.UserId,
-            order.DeliveryAddress,
-            order.PostalCode,
-            order.Phone,
-            order.CardNumber,
-            order.Expiry,
-            totalPrice);
+    /// <summary>
+    /// Calculates order price with optional voucher discount
+    /// </summary>
+    public async Task<IOrder> ExecuteAsync(
+        ValidatedOrder order,
+        string? voucherCode,
+        CancellationToken cancellationToken = default)
+    {
+        // Calculate subtotal from lines
+        var subtotal = order.Lines.Sum(line => line.LineTotal.Value);
+        _logger.LogInformation("Calculated subtotal: {Subtotal}", subtotal);
 
-        return Task.FromResult<IOrder>(pricedOrder);
+        // Apply voucher if provided
+        var result = await _applyVoucherOperation.ExecuteAsync(
+            order, 
+            subtotal, 
+            voucherCode, 
+            cancellationToken);
+
+        return result;
     }
 }
 

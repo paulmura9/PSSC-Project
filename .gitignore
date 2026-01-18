@@ -51,6 +51,10 @@ _NCrunch_*
 *.secrets.json
 secrets.json
 
+# Docker environment files - DO NOT COMMIT (contains connection strings)
+.env
+!.env.example
+
 # Windows
 Thumbs.db
 ehthumbs.db

@@ -25,6 +25,10 @@ builder.Services.AddDbContext<ShipmentDbContext>(options =>
 // Register persistence
 builder.Services.AddScoped<IShipmentRepository, ShipmentRepository>();
 
+// Register event history service for CSV logging
+var csvPath = Path.Combine(AppContext.BaseDirectory, "shipment_event_history.csv");
+builder.Services.AddSingleton<IEventHistoryService>(new CsvEventHistoryService(csvPath));
+
 // Register background service (Service Bus trigger)
 builder.Services.AddHostedService<OrderEventProcessor>();
 
@@ -33,5 +37,6 @@ var host = builder.Build();
 Console.WriteLine("Shipment Service starting...");
 Console.WriteLine($"Listening on topic '{TopicNames.Orders}', subscription '{SubscriptionNames.OrderProcessor}'");
 Console.WriteLine($"Publishing to topic '{TopicNames.Shipments}'");
+Console.WriteLine($"Event history CSV: {csvPath}");
 
 host.Run();

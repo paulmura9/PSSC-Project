@@ -1,11 +1,51 @@
-﻿services:
-  ordering.api:
-    image: ordering.api
+﻿﻿services:
+  # Ordering API - HTTP API for placing orders
+  ordering-api:
+    image: pssc/ordering-api
+    container_name: ordering-api
     build:
-      context: ./src/Ordering
-      dockerfile: Ordering.Api/Dockerfile
+      context: .
+      dockerfile: docker/Dockerfile.ordering
     ports:
-      - "8080:8080"
+      - "5272:8080"
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - ServiceBus__OrdersConnectionString=${SERVICEBUS_ORDERS_CONNECTION}
+    depends_on:
+      - shipment-service
+      - invoicing-service
+    restart: unless-stopped
+
+  # Shipment Service - Listens to Order events, creates shipments
+  shipment-service:
+    image: pssc/shipment-service
+    container_name: shipment-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.shipment
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - ServiceBus__OrdersConnectionString=${SERVICEBUS_ORDERS_CONNECTION}
+      - ServiceBus__ShipmentsConnectionString=${SERVICEBUS_SHIPMENTS_CONNECTION}
+    restart: unless-stopped
+
+  # Invoicing Service - Listens to Shipment events, creates invoices
+  invoicing-service:
+    image: pssc/invoicing-service
+    container_name: invoicing-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.invoicing
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - ServiceBus__ShipmentsConnectionString=${SERVICEBUS_SHIPMENTS_CONNECTION}
+      - ServiceBus__InvoicesConnectionString=${SERVICEBUS_INVOICES_CONNECTION}
+    restart: unless-stopped
+
+networks:
+  default:
+    name: pssc-network

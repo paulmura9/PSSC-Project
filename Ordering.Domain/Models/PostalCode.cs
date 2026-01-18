@@ -1,45 +1,34 @@
-using System.Text.RegularExpressions;
-using Ordering.Domain.Exceptions;
-
 namespace Ordering.Domain.Models;
 
 /// <summary>
-/// Value object representing a valid postal code
+/// Value Object representing a postal code
 /// </summary>
-public record PostalCode
+public sealed record PostalCode
 {
-    public const string Pattern = @"^[0-9]{5,6}$";
-    public static readonly Regex ValidPattern = new(Pattern);
-
     public string Value { get; }
 
-    internal PostalCode(string value)
+    private PostalCode(string value)
     {
-        if (IsValid(value))
-        {
-            Value = value;
-        }
-        else
-        {
-            throw new InvalidPostalCodeException($"Invalid postal code: {value}");
-        }
+        Value = value;
     }
 
-    private static bool IsValid(string stringValue) => ValidPattern.IsMatch(stringValue);
+    public static PostalCode Create(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Postal code is required", nameof(value));
+        
+        var cleanValue = value.Trim();
+        
+        if (cleanValue.Length < 5 || cleanValue.Length > 6)
+            throw new ArgumentException("Postal code must be 5-6 digits", nameof(value));
+        
+        if (!cleanValue.All(char.IsDigit))
+            throw new ArgumentException("Postal code must contain only digits", nameof(value));
+
+        return new PostalCode(cleanValue);
+    }
 
     public override string ToString() => Value;
-
-    public static bool TryParse(string stringValue, out PostalCode? postalCode)
-    {
-        postalCode = null;
-
-        if (IsValid(stringValue))
-        {
-            postalCode = new PostalCode(stringValue);
-            return true;
-        }
-
-        return false;
-    }
+    public static implicit operator string(PostalCode code) => code.Value;
 }
 

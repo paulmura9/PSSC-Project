@@ -1,0 +1,4 @@
+Schema [ordering] already exists
+Schema [shipment] already exists
+Schema [invoicing] already exists
+Database schema setup completed successfully!

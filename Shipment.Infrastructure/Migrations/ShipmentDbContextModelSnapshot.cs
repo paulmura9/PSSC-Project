@@ -17,12 +17,13 @@ namespace Shipment.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("shipment")
                 .HasAnnotation("ProductVersion", "9.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Shipment.Domain.Models.ShipmentEntity", b =>
+            modelBuilder.Entity("Shipment.Infrastructure.Persistence.ShipmentEntity", b =>
                 {
                     b.Property<Guid>("ShipmentId")
                         .HasColumnType("uniqueidentifier");
@@ -60,13 +61,23 @@ namespace Shipment.Infrastructure.Migrations
                     b.HasIndex("TrackingNumber")
                         .IsUnique();
 
-                    b.ToTable("Shipments");
+                    b.ToTable("Shipments", "shipment");
                 });
 
-            modelBuilder.Entity("Shipment.Domain.Models.ShipmentLineEntity", b =>
+            modelBuilder.Entity("Shipment.Infrastructure.Persistence.ShipmentLineEntity", b =>
                 {
                     b.Property<Guid>("ShipmentLineId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<decimal>("LineTotal")
                         .HasPrecision(18, 2)
@@ -91,12 +102,12 @@ namespace Shipment.Infrastructure.Migrations
 
                     b.HasIndex("ShipmentId");
 
-                    b.ToTable("ShipmentLines");
+                    b.ToTable("ShipmentLines", "shipment");
                 });
 
-            modelBuilder.Entity("Shipment.Domain.Models.ShipmentLineEntity", b =>
+            modelBuilder.Entity("Shipment.Infrastructure.Persistence.ShipmentLineEntity", b =>
                 {
-                    b.HasOne("Shipment.Domain.Models.ShipmentEntity", "Shipment")
+                    b.HasOne("Shipment.Infrastructure.Persistence.ShipmentEntity", "Shipment")
                         .WithMany("Lines")
                         .HasForeignKey("ShipmentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -105,7 +116,7 @@ namespace Shipment.Infrastructure.Migrations
                     b.Navigation("Shipment");
                 });
 
-            modelBuilder.Entity("Shipment.Domain.Models.ShipmentEntity", b =>
+            modelBuilder.Entity("Shipment.Infrastructure.Persistence.ShipmentEntity", b =>
                 {
                     b.Navigation("Lines");
                 });

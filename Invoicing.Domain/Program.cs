@@ -1,12 +1,14 @@
-﻿﻿﻿using Azure.Messaging.ServiceBus;
-using Microsoft.EntityFrameworkCore;
+﻿﻿﻿﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using SharedKernel;
 using Invoicing;
 using Invoicing.Operations;
 using Invoicing.Workflows;
 using Invoicing.Infrastructure.Persistence;
+using Invoicing.Infrastructure.Repository;
+using IInvoiceRepository = Invoicing.Infrastructure.Repository.IInvoiceRepository;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -27,9 +29,13 @@ builder.Services.AddDbContext<InvoicingDbContext>(options =>
 // Register persistence
 builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
-// Register operations
-builder.Services.AddSingleton<ValidateInvoiceOperation>();
-builder.Services.AddSingleton<GenerateInvoiceOperation>();
+// Register event history service for CSV logging
+var csvPath = Path.Combine(AppContext.BaseDirectory, "invoicing_event_history.csv");
+builder.Services.AddSingleton<IEventHistoryService>(new CsvEventHistoryService(csvPath));
+
+// Register operations (with logging via DI)
+builder.Services.AddSingleton<CalculateInvoiceOperation>(sp => 
+    new CalculateInvoiceOperation(sp.GetRequiredService<ILogger<CalculateInvoiceOperation>>()));
 
 // Register workflow
 builder.Services.AddSingleton<CreateInvoiceWorkflow>();
@@ -45,6 +51,7 @@ var host = builder.Build();
 Console.WriteLine("Invoicing Service starting...");
 Console.WriteLine($"Listening on topic '{TopicNames.Shipments}', subscription '{SubscriptionNames.ShipmentProcessor}'");
 Console.WriteLine($"Publishing to topic '{TopicNames.Invoices}'");
+Console.WriteLine($"Event history CSV: {csvPath}");
 
 host.Run();
 

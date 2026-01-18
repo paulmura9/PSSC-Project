@@ -1,0 +1,5 @@
+Msg 5074, Level 16, State 1, Server pssc-server, Line 2
+The object 'DF__Vouchers__Uses__22751F6C' is dependent on column 'Uses'.
+Msg 4922, Level 16, State 9, Server pssc-server, Line 2
+ALTER TABLE DROP COLUMN Uses failed because one or more objects access this column.
+Uses column dropped successfully

@@ -13,11 +13,4 @@ public record ShipmentCreatedEvent : IntegrationEvent
     public List<ShipmentLineItem> Lines { get; init; } = new();
 }
 
-public record ShipmentLineItem
-{
-    public string Name { get; init; } = string.Empty;
-    public int Quantity { get; init; }
-    public decimal UnitPrice { get; init; }
-    public decimal LineTotal { get; init; }
-}
 

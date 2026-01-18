@@ -4,9 +4,47 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SharedKernel;
 using SharedKernel.ServiceBus;
+using Shipment.Domain.Operations;
 using Shipment.Infrastructure.Persistence;
+using IShipmentRepository = Shipment.Infrastructure.Persistence.IShipmentRepository;
 
 namespace Shipment.Domain;
+
+/// <summary>
+/// DTO for deserializing OrderStateChangedEvent from Service Bus
+/// </summary>
+public class OrderStateChangedEventDto
+{
+    public Guid EventId { get; set; }
+    public DateTime OccurredAt { get; set; }
+    public string OrderStatus { get; set; } = string.Empty;
+    public Guid OrderId { get; set; }
+    public Guid UserId { get; set; }
+    public bool PremiumSubscription { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal Total { get; set; }
+    public string? VoucherCode { get; set; }
+    public decimal TotalPrice { get; set; } // Legacy
+    public List<OrderLineEventDto> Lines { get; set; } = new();
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Reason { get; set; }
+    public string PaymentMethod { get; set; } = "CashOnDelivery";
+}
+
+public class OrderLineEventDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal LineTotal { get; set; }
+}
 
 /// <summary>
 /// Background service that listens to Order events from Service Bus and processes shipments
@@ -16,21 +54,22 @@ public class OrderEventProcessor : BackgroundService
     private readonly ServiceBusProcessor _processor;
     private readonly ServiceBusSender _shipmentSender;
     private readonly IShipmentRepository _repository;
+    private readonly IEventHistoryService _eventHistory;
     private readonly ILogger<OrderEventProcessor> _logger;
     
-    // Track processed messages to avoid duplicate processing
-    private static readonly HashSet<string> _processedMessageIds = new();
-    private static readonly object _lock = new();
+    private static readonly HashSet<string> ProcessedMessageIds = new();
+    private static readonly object Lock = new();
 
     public OrderEventProcessor(
         ServiceBusClientFactory clientFactory,
         IShipmentRepository repository,
+        IEventHistoryService eventHistory,
         ILogger<OrderEventProcessor> logger)
     {
         _repository = repository;
+        _eventHistory = eventHistory;
         _logger = logger;
 
-        // Create processor for the orders topic with subscription (using orders client)
         _processor = clientFactory.OrdersClient.CreateProcessor(
             topicName: TopicNames.Orders,
             subscriptionName: SubscriptionNames.OrderProcessor,
@@ -40,7 +79,6 @@ public class OrderEventProcessor : BackgroundService
                 MaxConcurrentCalls = 1
             });
 
-        // Create sender for the shipments topic (using shipments client)
         _shipmentSender = clientFactory.ShipmentsClient.CreateSender(TopicNames.Shipments);
     }
 
@@ -53,7 +91,7 @@ public class OrderEventProcessor : BackgroundService
         _logger.LogInformation("Shipment Service Started");
         _logger.LogInformation("Listening on Topic: '{Topic}', Subscription: '{Subscription}'", TopicNames.Orders, SubscriptionNames.OrderProcessor);
         _logger.LogInformation("Publishing to Topic: '{Topic}'", TopicNames.Shipments);
-        _logger.LogInformation("Waiting for order events from Service Bus...");
+        _logger.LogInformation("Waiting for OrderStateChangedEvent from Service Bus...");
         _logger.LogInformation("========================================");
         
         await _processor.StartProcessingAsync(stoppingToken);
@@ -73,122 +111,228 @@ public class OrderEventProcessor : BackgroundService
         var messageId = args.Message.MessageId;
         
         // Check if message was already processed (deduplication)
-        lock (_lock)
+        lock (Lock)
         {
-            if (_processedMessageIds.Contains(messageId))
+            if (ProcessedMessageIds.Contains(messageId))
             {
-                _logger.LogInformation("Message {MessageId} already processed, skipping (DeliveryCount: {Count})", 
-                    messageId, args.Message.DeliveryCount);
+                _logger.LogInformation("Message {MessageId} already processed, skipping", messageId);
                 return;
             }
-            _processedMessageIds.Add(messageId);
+            ProcessedMessageIds.Add(messageId);
         }
         
         string messageBody = args.Message.Body.ToString();
         
         _logger.LogInformation("========================================");
-        _logger.LogInformation("SERVICE BUS MESSAGE RECEIVED (NEW)");
-        _logger.LogInformation("Message ID: {MessageId}", args.Message.MessageId);
-        _logger.LogInformation("Message Body: {MessageBody}", messageBody);
+        _logger.LogInformation("SERVICE BUS MESSAGE RECEIVED");
+        _logger.LogInformation("Message ID: {MessageId}", messageId);
         _logger.LogInformation("========================================");
 
         try
         {
-            var orderEvent = JsonSerializer.Deserialize<OrderPlacedEventDto>(messageBody, JsonSerializerOptionsProvider.Default);
+            var orderEvent = JsonSerializer.Deserialize<OrderStateChangedEventDto>(messageBody, JsonSerializerOptionsProvider.Default);
 
             if (orderEvent == null)
             {
-                _logger.LogWarning("Failed to deserialize order event - message body is null or invalid");
+                _logger.LogWarning("Failed to deserialize order event");
                 await args.CompleteMessageAsync(args.Message);
                 return;
             }
 
-            _logger.LogInformation("Order Event Parsed Successfully:");
-            _logger.LogInformation("  - Order ID: {OrderId}", orderEvent.OrderId);
-            _logger.LogInformation("  - User ID: {UserId}", orderEvent.UserId);
-            _logger.LogInformation("  - Total Price: {TotalPrice:C}", orderEvent.TotalPrice);
-            _logger.LogInformation("  - Lines Count: {LinesCount}", orderEvent.Lines.Count);
-            _logger.LogInformation("  - Occurred At: {OccurredAt}", orderEvent.OccurredAt);
+            _logger.LogInformation("Order Event: OrderId={OrderId}, Status={Status}", orderEvent.OrderId, orderEvent.OrderStatus);
 
-            // Create shipment entity
-            var shipmentId = Guid.NewGuid();
-            var trackingNumber = $"TRACK-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
-
-            var shipmentEntity = new ShipmentEntity
+            // Handle based on order status
+            switch (orderEvent.OrderStatus)
             {
-                ShipmentId = shipmentId,
-                OrderId = orderEvent.OrderId,
-                UserId = orderEvent.UserId,
-                TotalPrice = orderEvent.TotalPrice,
-                TrackingNumber = trackingNumber,
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow
-            };
+                case "Placed":
+                    await HandleOrderPlacedAsync(orderEvent, args.CancellationToken);
+                    break;
+                case "Cancelled":
+                    await HandleOrderCancelledAsync(orderEvent, args.CancellationToken);
+                    break;
+                case "Returned":
+                    await HandleOrderReturnedAsync(orderEvent, args.CancellationToken);
+                    break;
+                case "Modified":
+                    await HandleOrderModifiedAsync(orderEvent, args.CancellationToken);
+                    break;
+                default:
+                    _logger.LogWarning("Unknown order status: {Status}", orderEvent.OrderStatus);
+                    break;
+            }
 
-            var lineEntities = orderEvent.Lines.Select(l => new ShipmentLineEntity
-            {
-                ShipmentLineId = Guid.NewGuid(),
-                ShipmentId = shipmentId,
-                Name = l.Name,
-                Quantity = l.Quantity,
-                UnitPrice = l.UnitPrice,
-                LineTotal = l.LineTotal
-            }).ToList();
+            // Save to CSV history
+            await _eventHistory.SaveEventAsync(
+                orderEvent,
+                eventType: $"OrderStateChanged:{orderEvent.OrderStatus}",
+                source: TopicNames.Orders,
+                orderId: orderEvent.OrderId.ToString(),
+                status: "Processed"
+            );
+            _logger.LogInformation("Event saved to CSV history");
 
-            // Save to database
-            await _repository.SaveShipmentAsync(shipmentEntity, lineEntities, args.CancellationToken);
-
-            _logger.LogInformation("========================================");
-            _logger.LogInformation("SHIPMENT CREATED SUCCESSFULLY");
-            _logger.LogInformation("  ShipmentId: {ShipmentId}", shipmentId);
-            _logger.LogInformation("  TrackingNumber: {TrackingNumber}", trackingNumber);
-            _logger.LogInformation("  OrderId: {OrderId}", orderEvent.OrderId);
-            _logger.LogInformation("========================================");
-
-            // Publish ShipmentCreatedEvent to shipments topic for Invoicing
-            var shipmentCreatedEvent = new ShipmentCreatedEvent
-            {
-                ShipmentId = shipmentId,
-                OrderId = orderEvent.OrderId,
-                UserId = orderEvent.UserId,
-                TrackingNumber = trackingNumber,
-                TotalPrice = orderEvent.TotalPrice,
-                Lines = orderEvent.Lines.Select(l => new ShipmentLineItem
-                {
-                    Name = l.Name,
-                    Quantity = l.Quantity,
-                    UnitPrice = l.UnitPrice,
-                    LineTotal = l.LineTotal
-                }).ToList()
-            };
-
-            var eventJson = JsonSerializer.Serialize(shipmentCreatedEvent, JsonSerializerOptionsProvider.Default);
-            var message = new ServiceBusMessage(eventJson)
-            {
-                ContentType = "application/json",
-                Subject = nameof(ShipmentCreatedEvent),
-                MessageId = shipmentCreatedEvent.EventId.ToString()
-            };
-
-            await _shipmentSender.SendMessageAsync(message, args.CancellationToken);
-            
-            _logger.LogInformation("========================================");
-            _logger.LogInformation("SHIPMENT EVENT PUBLISHED TO INVOICING");
-            _logger.LogInformation("  Topic: {Topic}", TopicNames.Shipments);
-            _logger.LogInformation("  EventId: {EventId}", shipmentCreatedEvent.EventId);
-            _logger.LogInformation("========================================");
-
-            // Complete the message - commented out for testing (message stays in queue)
-            // await args.CompleteMessageAsync(args.Message);
-            // _logger.LogInformation("Message completed and removed from queue");
-            _logger.LogInformation("Message processed (NOT removed from queue for testing)");
+            await args.CompleteMessageAsync(args.Message);
+            _logger.LogInformation("Message completed");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing order event: {ErrorMessage}", ex.Message);
+            _logger.LogError(ex, "Error processing order event: {Message}", ex.Message);
             await args.AbandonMessageAsync(args.Message);
-            _logger.LogWarning("Message abandoned - will be retried");
         }
+    }
+
+    private async Task HandleOrderPlacedAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Handling Order Placed for OrderId: {OrderId}, PremiumSubscription: {PremiumSubscription}", 
+            orderEvent.OrderId, orderEvent.PremiumSubscription);
+
+        var shipmentId = Guid.NewGuid();
+        var trackingNumber = $"TRACK-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+
+        // Calculate shipping cost using the operation (explicit state transition)
+        var orderTotal = orderEvent.Total > 0 ? orderEvent.Total : orderEvent.TotalPrice; // Fallback for backwards compatibility
+        
+        // Use CalculateShippingCostOperation for shipping cost calculation
+        var shippingCost = CalculateShippingCostOperation.CalculateShippingCost(orderTotal, orderEvent.PremiumSubscription);
+        var shippingDescription = CalculateShippingCostOperation.GetShippingCostDescription(orderTotal, orderEvent.PremiumSubscription);
+        
+        _logger.LogInformation("Shipping calculation: {Description}", shippingDescription);
+
+        var totalWithShipping = orderTotal + shippingCost;
+        _logger.LogInformation("Total with shipping: {TotalWithShipping} RON", totalWithShipping);
+
+        // Premium customers get Priority status, regular customers get Scheduled
+        var shipmentStatus = orderEvent.PremiumSubscription ? "Priority" : "Scheduled";
+
+        var shipmentEntity = new ShipmentEntity
+        {
+            ShipmentId = shipmentId,
+            OrderId = orderEvent.OrderId,
+            UserId = orderEvent.UserId,
+            TotalPrice = orderTotal,
+            ShippingCost = shippingCost,
+            TotalWithShipping = totalWithShipping,
+            TrackingNumber = trackingNumber,
+            Status = shipmentStatus,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var lineEntities = orderEvent.Lines.Select(l => new ShipmentLineEntity
+        {
+            ShipmentLineId = Guid.NewGuid(),
+            ShipmentId = shipmentId,
+            Name = l.Name,
+            Description = l.Description,
+            Category = l.Category,
+            Quantity = l.Quantity,
+            UnitPrice = l.UnitPrice,
+            LineTotal = l.LineTotal
+        }).ToList();
+
+        await _repository.SaveShipmentAsync(shipmentEntity, lineEntities, cancellationToken);
+
+        _logger.LogInformation("Shipment created: ShipmentId={ShipmentId}, TrackingNumber={TrackingNumber}, Status={Status}, ShippingCost={ShippingCost}", 
+            shipmentId, trackingNumber, shipmentStatus, shippingCost);
+
+        // Publish ShipmentStateChangedEvent with shipping cost info
+        var shipmentEvent = new ShipmentStateChangedEvent
+        {
+            ShipmentState = shipmentStatus,
+            ShipmentId = shipmentId,
+            OrderId = orderEvent.OrderId,
+            UserId = orderEvent.UserId,
+            PremiumSubscription = orderEvent.PremiumSubscription,
+            PaymentMethod = orderEvent.PaymentMethod,
+            TrackingNumber = trackingNumber,
+            Subtotal = orderEvent.Subtotal > 0 ? orderEvent.Subtotal : orderTotal,
+            DiscountAmount = orderEvent.DiscountAmount,
+            TotalAfterDiscount = orderTotal,
+            ShippingCost = shippingCost,
+            TotalWithShipping = totalWithShipping,
+            Lines = orderEvent.Lines.Select(l => new ShipmentLineEventDto
+            {
+                Name = l.Name,
+                Description = l.Description,
+                Category = l.Category,
+                Quantity = l.Quantity,
+                UnitPrice = l.UnitPrice,
+                LineTotal = l.LineTotal
+            }).ToList()
+        };
+
+        var eventJson = JsonSerializer.Serialize(shipmentEvent, JsonSerializerOptionsProvider.Default);
+        var message = new ServiceBusMessage(eventJson)
+        {
+            ContentType = "application/json",
+            Subject = "ShipmentStateChanged",
+            MessageId = shipmentEvent.EventId.ToString()
+        };
+
+        await _shipmentSender.SendMessageAsync(message, cancellationToken);
+        _logger.LogInformation("Published ShipmentStateChangedEvent(Scheduled) to topic '{Topic}'", TopicNames.Shipments);
+    }
+
+    private async Task HandleOrderCancelledAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Handling Order Cancelled for OrderId: {OrderId}, Reason: {Reason}", orderEvent.OrderId, orderEvent.Reason);
+
+        // Update shipment status to Cancelled
+        await _repository.UpdateStatusByOrderIdAsync(orderEvent.OrderId, "Cancelled", cancellationToken);
+
+        _logger.LogInformation("Shipment cancelled for OrderId: {OrderId}", orderEvent.OrderId);
+
+        // Publish ShipmentStateChangedEvent(Cancelled)
+        var shipmentEvent = new ShipmentStateChangedEvent
+        {
+            ShipmentState = "Cancelled",
+            OrderId = orderEvent.OrderId,
+            UserId = orderEvent.UserId,
+            Reason = orderEvent.Reason
+        };
+
+        var eventJson = JsonSerializer.Serialize(shipmentEvent, JsonSerializerOptionsProvider.Default);
+        var message = new ServiceBusMessage(eventJson)
+        {
+            ContentType = "application/json",
+            Subject = "ShipmentStateChanged",
+            MessageId = shipmentEvent.EventId.ToString()
+        };
+
+        await _shipmentSender.SendMessageAsync(message, cancellationToken);
+        _logger.LogInformation("Published ShipmentStateChangedEvent(Cancelled)");
+    }
+
+    private async Task HandleOrderReturnedAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Handling Order Returned for OrderId: {OrderId}", orderEvent.OrderId);
+
+        await _repository.UpdateStatusByOrderIdAsync(orderEvent.OrderId, "Returned", cancellationToken);
+
+        var shipmentEvent = new ShipmentStateChangedEvent
+        {
+            ShipmentState = "Returned",
+            OrderId = orderEvent.OrderId,
+            UserId = orderEvent.UserId,
+            Reason = orderEvent.Reason
+        };
+
+        var eventJson = JsonSerializer.Serialize(shipmentEvent, JsonSerializerOptionsProvider.Default);
+        var message = new ServiceBusMessage(eventJson)
+        {
+            ContentType = "application/json",
+            Subject = "ShipmentStateChanged",
+            MessageId = shipmentEvent.EventId.ToString()
+        };
+
+        await _shipmentSender.SendMessageAsync(message, cancellationToken);
+        _logger.LogInformation("Published ShipmentStateChangedEvent(Returned)");
+    }
+
+    private Task HandleOrderModifiedAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Handling Order Modified for OrderId: {OrderId}", orderEvent.OrderId);
+        // For now, just log - could update shipment details if needed
+        return Task.CompletedTask;
     }
 
     private Task ProcessErrorAsync(ProcessErrorEventArgs args)
@@ -203,24 +347,4 @@ public class OrderEventProcessor : BackgroundService
         await _processor.DisposeAsync();
         await base.StopAsync(cancellationToken);
     }
-}
-
-/// <summary>
-/// DTO for deserializing order placed events from Service Bus
-/// </summary>
-public class OrderPlacedEventDto
-{
-    public Guid OrderId { get; set; }
-    public Guid UserId { get; set; }
-    public decimal TotalPrice { get; set; }
-    public List<OrderLineDto> Lines { get; set; } = new();
-    public DateTime OccurredAt { get; set; }
-}
-
-public class OrderLineDto
-{
-    public string Name { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public decimal UnitPrice { get; set; }
-    public decimal LineTotal { get; set; }
 }
