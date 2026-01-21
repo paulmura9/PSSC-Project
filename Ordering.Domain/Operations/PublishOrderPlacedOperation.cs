@@ -1,3 +1,4 @@
+using SharedKernel;
 using Ordering.Domain.Events;
 using Ordering.Domain.Models;
 using static Ordering.Domain.Models.Order;
@@ -32,13 +33,13 @@ public class PublishOrderPlacedOperation : OrderOperationWithState<IOrderEventPu
             OccurredAt = DateTime.UtcNow,
             OrderStatus = OrderStatus.Placed,
             OrderId = order.OrderId,
-            UserId = order.UserId,
+            UserId = order.UserId.Value,
             PremiumSubscription = order.PremiumSubscription,
             Subtotal = order.Subtotal,
             DiscountAmount = order.DiscountAmount,
             Total = order.Total,
-            VoucherCode = order.VoucherCode,
-            Lines = order.Lines.Select(line => new OrderLineDto
+            VoucherCode = order.VoucherCode?.Value,
+            Lines = order.Lines.Select(line => new LineItemDto
             {
                 Name = line.Name.Value,
                 Description = line.Description.Value,
@@ -47,11 +48,11 @@ public class PublishOrderPlacedOperation : OrderOperationWithState<IOrderEventPu
                 UnitPrice = line.UnitPrice.Value,
                 LineTotal = line.LineTotal.Value
             }).ToList(),
-            Street = order.Street,
-            City = order.City,
-            PostalCode = order.PostalCode,
-            Phone = order.Phone,
-            Email = order.Email,
+            Street = order.Street?.Value,
+            City = order.City?.Value,
+            PostalCode = order.PostalCode?.Value,
+            Phone = order.Phone.Value,
+            Email = order.Email?.Value,
             PickupMethod = order.PickupMethod.Value,
             PickupPointId = order.PickupPointId?.Value,
             PaymentMethod = order.PaymentMethod.Value

@@ -1,20 +1,21 @@
 using SharedKernel;
+using SharedKernel.StateMachine;
+using Shipment.Domain.Events;
 
 namespace Shipment.Domain.Models;
 
 /// <summary>
 /// Shipment state enumeration for tracking current state
-/// NO VALIDATION - data is pre-validated by Ordering
 /// </summary>
 public enum ShipmentState
 {
     Created,                // Shipment created from order event
-    ShippingCostCalculated, // Shipping cost calculated (0 for premium, 30-100 RON for regular based on order total)
+    ShippingCostCalculated, // Shipping cost calculated
     Scheduled,              // Scheduled for dispatch (tracking number assigned)
     Dispatched,             // Sent out for delivery
     Delivered,              // Successfully delivered
     Cancelled,              // Cancelled (from OrderStateChangedEvent with Status=Cancelled)
-    Returned,               // Returned by customer (from OrderStateChangedEvent with Status=Returned)
+    Returned,               // Returned by customer
     Persisted               // Saved to database (internal state)
 }
 
@@ -40,6 +41,9 @@ public static class Shipment
         .Allow(ShipmentState.Dispatched, ShipmentState.Delivered, ShipmentState.Returned)
         .Allow(ShipmentState.Persisted, ShipmentState.Scheduled, ShipmentState.Cancelled);
 
+    /// <summary>
+    /// Marker interface for all shipment states
+    /// </summary>
     public interface IShipment : IStateMachine<ShipmentState>
     {
         ShipmentState IStateMachine<ShipmentState>.CurrentState => this switch
@@ -61,7 +65,6 @@ public static class Shipment
 
     /// <summary>
     /// Represents a newly created shipment from order event
-    /// Data is already validated by Ordering
     /// </summary>
     public record CreatedShipment : IShipment
     {
@@ -88,12 +91,6 @@ public static class Shipment
 
     /// <summary>
     /// Represents a shipment with calculated shipping cost
-    /// Premium subscribers get free shipping
-    /// Regular customers pay based on order total (in RON):
-    /// - 0-3000 RON: 30 RON
-    /// - 3001-6000 RON: 50 RON
-    /// - 6001-10000 RON: 75 RON
-    /// - >= 10001 RON: 100 RON
     /// </summary>
     public record ShippingCostCalculatedShipment : IShipment
     {
@@ -131,7 +128,7 @@ public static class Shipment
     }
 
     /// <summary>
-    /// Represents a shipment scheduled for dispatch
+    /// Represents a scheduled shipment with tracking number
     /// </summary>
     public record ScheduledShipment : IShipment
     {
@@ -140,6 +137,8 @@ public static class Shipment
             Guid orderId,
             Guid userId,
             Money totalPrice,
+            Money shippingCost,
+            Money totalWithShipping,
             IReadOnlyCollection<ShipmentLine> lines,
             TrackingNumber trackingNumber,
             DateTime orderPlacedAt,
@@ -149,6 +148,8 @@ public static class Shipment
             OrderId = orderId;
             UserId = userId;
             TotalPrice = totalPrice;
+            ShippingCost = shippingCost;
+            TotalWithShipping = totalWithShipping;
             Lines = lines;
             TrackingNumber = trackingNumber;
             OrderPlacedAt = orderPlacedAt;
@@ -159,6 +160,8 @@ public static class Shipment
         public Guid OrderId { get; }
         public Guid UserId { get; }
         public Money TotalPrice { get; }
+        public Money ShippingCost { get; }
+        public Money TotalWithShipping { get; }
         public IReadOnlyCollection<ShipmentLine> Lines { get; }
         public TrackingNumber TrackingNumber { get; }
         public DateTime OrderPlacedAt { get; }
@@ -166,7 +169,7 @@ public static class Shipment
     }
 
     /// <summary>
-    /// Represents a shipment that has been dispatched (sent out for delivery)
+    /// Represents a dispatched shipment (sent out for delivery)
     /// </summary>
     public record DispatchedShipment : IShipment
     {
@@ -175,16 +178,22 @@ public static class Shipment
             Guid orderId,
             Guid userId,
             Money totalPrice,
+            Money shippingCost,
+            Money totalWithShipping,
             IReadOnlyCollection<ShipmentLine> lines,
             TrackingNumber trackingNumber,
+            DateTime orderPlacedAt,
             DateTime dispatchedAt)
         {
             ShipmentId = shipmentId;
             OrderId = orderId;
             UserId = userId;
             TotalPrice = totalPrice;
+            ShippingCost = shippingCost;
+            TotalWithShipping = totalWithShipping;
             Lines = lines;
             TrackingNumber = trackingNumber;
+            OrderPlacedAt = orderPlacedAt;
             DispatchedAt = dispatchedAt;
         }
 
@@ -192,13 +201,16 @@ public static class Shipment
         public Guid OrderId { get; }
         public Guid UserId { get; }
         public Money TotalPrice { get; }
+        public Money ShippingCost { get; }
+        public Money TotalWithShipping { get; }
         public IReadOnlyCollection<ShipmentLine> Lines { get; }
         public TrackingNumber TrackingNumber { get; }
+        public DateTime OrderPlacedAt { get; }
         public DateTime DispatchedAt { get; }
     }
 
     /// <summary>
-    /// Represents a shipment that has been successfully delivered
+    /// Represents a delivered shipment (successfully delivered)
     /// </summary>
     public record DeliveredShipment : IShipment
     {
@@ -224,32 +236,30 @@ public static class Shipment
     }
 
     /// <summary>
-    /// Represents a shipment that has been cancelled
-    /// Triggered by OrderStateChangedEvent with Status=Cancelled
+    /// Represents a cancelled shipment
     /// </summary>
     public record CancelledShipment : IShipment
     {
         public CancelledShipment(
-            Guid shipmentId,
             Guid orderId,
-            CancellationReason reason,
+            Guid userId,
+            string reason,
             DateTime cancelledAt)
         {
-            ShipmentId = shipmentId;
             OrderId = orderId;
+            UserId = userId;
             Reason = reason;
             CancelledAt = cancelledAt;
         }
 
-        public Guid ShipmentId { get; }
         public Guid OrderId { get; }
-        public CancellationReason Reason { get; }
+        public Guid UserId { get; }
+        public string Reason { get; }
         public DateTime CancelledAt { get; }
     }
 
     /// <summary>
-    /// Represents a shipment that has been returned by customer
-    /// Triggered by OrderStateChangedEvent with Status=Returned
+    /// Represents a returned shipment
     /// </summary>
     public record ReturnedShipment : IShipment
     {
@@ -258,7 +268,7 @@ public static class Shipment
             Guid orderId,
             Guid userId,
             TrackingNumber trackingNumber,
-            ReturnReason returnReason,
+            string returnReason,
             DateTime returnedAt)
         {
             ShipmentId = shipmentId;
@@ -273,7 +283,7 @@ public static class Shipment
         public Guid OrderId { get; }
         public Guid UserId { get; }
         public TrackingNumber TrackingNumber { get; }
-        public ReturnReason ReturnReason { get; }
+        public string ReturnReason { get; }
         public DateTime ReturnedAt { get; }
     }
 
@@ -287,6 +297,8 @@ public static class Shipment
             Guid orderId,
             Guid userId,
             Money totalPrice,
+            Money shippingCost,
+            Money totalWithShipping,
             IReadOnlyCollection<ShipmentLine> lines,
             TrackingNumber trackingNumber,
             DateTime orderPlacedAt,
@@ -296,6 +308,8 @@ public static class Shipment
             OrderId = orderId;
             UserId = userId;
             TotalPrice = totalPrice;
+            ShippingCost = shippingCost;
+            TotalWithShipping = totalWithShipping;
             Lines = lines;
             TrackingNumber = trackingNumber;
             OrderPlacedAt = orderPlacedAt;
@@ -306,10 +320,58 @@ public static class Shipment
         public Guid OrderId { get; }
         public Guid UserId { get; }
         public Money TotalPrice { get; }
+        public Money ShippingCost { get; }
+        public Money TotalWithShipping { get; }
         public IReadOnlyCollection<ShipmentLine> Lines { get; }
         public TrackingNumber TrackingNumber { get; }
         public DateTime OrderPlacedAt { get; }
         public DateTime PersistedAt { get; }
     }
-}
 
+    /// <summary>
+    /// Extension method to convert shipment state to event (Lab-style pattern)
+    /// </summary>
+    public static IShipmentSentEvent ToEvent(this IShipment shipment) => shipment switch
+    {
+        CreatedShipment _ => new ShipmentSendFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected created state" } 
+        },
+        ShippingCostCalculatedShipment _ => new ShipmentSendFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected shipping cost calculated state" } 
+        },
+        ScheduledShipment _ => new ShipmentSendFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected scheduled state" } 
+        },
+        DispatchedShipment _ => new ShipmentSendFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected dispatched state" } 
+        },
+        PersistedShipment persisted => new ShipmentSentEvent
+        {
+            ShipmentId = persisted.ShipmentId,
+            OrderId = persisted.OrderId,
+            UserId = persisted.UserId,
+            TrackingNumber = persisted.TrackingNumber.Value,
+            TotalPrice = persisted.TotalWithShipping.Value,
+            SentAt = DateTime.UtcNow
+        },
+        CancelledShipment cancelled => new ShipmentSendFailedEvent 
+        { 
+            OrderId = cancelled.OrderId,
+            Reasons = new[] { cancelled.Reason } 
+        },
+        ReturnedShipment returned => new ShipmentSendFailedEvent 
+        { 
+            OrderId = returned.OrderId,
+            Reasons = new[] { returned.ReturnReason } 
+        },
+        DeliveredShipment _ => new ShipmentSendFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected delivered state" } 
+        },
+        _ => throw new NotImplementedException($"Unknown shipment state: {shipment.GetType().Name}")
+    };
+}

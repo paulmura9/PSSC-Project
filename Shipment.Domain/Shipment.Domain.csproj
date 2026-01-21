@@ -23,6 +23,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\SharedKernel\SharedKernel.csproj" />
+        <!-- Infrastructure referenced ONLY for DI registration in Program.cs -->
+        <!-- Domain code (Operations, Workflows, Models) uses interfaces, not implementations -->
         <ProjectReference Include="..\Shipment.Infrastructure\Shipment.Infrastructure.csproj" />
     </ItemGroup>
 

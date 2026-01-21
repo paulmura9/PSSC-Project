@@ -29,13 +29,36 @@ public class ValidateOrderOperation : OrderOperation
         {
             if (pickupMethod.RequiresAddress)
             {
-                // HomeDelivery requires address
+                // HomeDelivery requires address - validate using VOs
                 if (string.IsNullOrWhiteSpace(order.Street))
+                {
                     errors.Add("Street is required for HomeDelivery");
+                }
+                else
+                {
+                    try { Street.Create(order.Street); }
+                    catch (ArgumentException ex) { errors.Add($"Invalid street: {ex.Message}"); }
+                }
+                
                 if (string.IsNullOrWhiteSpace(order.City))
+                {
                     errors.Add("City is required for HomeDelivery");
+                }
+                else
+                {
+                    try { City.Create(order.City); }
+                    catch (ArgumentException ex) { errors.Add($"Invalid city: {ex.Message}"); }
+                }
+                
                 if (string.IsNullOrWhiteSpace(order.PostalCode))
+                {
                     errors.Add("Postal code is required for HomeDelivery");
+                }
+                else
+                {
+                    try { PostalCode.Create(order.PostalCode); }
+                    catch (ArgumentException ex) { errors.Add($"Invalid postal code: {ex.Message}"); }
+                }
                 
                 // HomeDelivery must NOT have PickupPointId
                 if (!string.IsNullOrWhiteSpace(order.PickupPointIdInput))
@@ -70,16 +93,58 @@ public class ValidateOrderOperation : OrderOperation
             errors.Add($"Invalid payment method: {order.PaymentMethodInput}. Allowed values: CashOnDelivery, CardOnDelivery, CardOnline");
         }
 
-        // Phone is always required
+        // Phone is always required - validate using PhoneNumber VO
         if (string.IsNullOrWhiteSpace(order.Phone))
         {
             errors.Add("Phone number is required");
         }
-
-        // Validate user
-        if (order.UserId == Guid.Empty)
+        else
         {
-            errors.Add("User ID is required");
+            try
+            {
+                // Validate phone format using VO
+                PhoneNumber.Create(order.Phone);
+            }
+            catch (ArgumentException ex)
+            {
+                errors.Add($"Invalid phone number: {ex.Message}");
+            }
+        }
+
+        // Validate email format if provided
+        if (!string.IsNullOrWhiteSpace(order.Email))
+        {
+            try
+            {
+                EmailAddress.Create(order.Email);
+            }
+            catch (ArgumentException ex)
+            {
+                errors.Add($"Invalid email: {ex.Message}");
+            }
+        }
+
+        // Validate delivery notes if provided
+        if (!string.IsNullOrWhiteSpace(order.DeliveryNotes))
+        {
+            try
+            {
+                DeliveryNotes.Create(order.DeliveryNotes);
+            }
+            catch (ArgumentException ex)
+            {
+                errors.Add($"Invalid delivery notes: {ex.Message}");
+            }
+        }
+
+        // Validate user using CustomerId VO
+        try
+        {
+            CustomerId.Create(order.UserId);
+        }
+        catch (ArgumentException ex)
+        {
+            errors.Add($"Invalid user ID: {ex.Message}");
         }
 
         // Validate lines
@@ -110,26 +175,36 @@ public class ValidateOrderOperation : OrderOperation
             }
         }
 
+        // Invalid order
         if (errors.Count > 0)
         {
             var invalidOrder = new InvalidOrder(order.Lines, errors);
             return Task.FromResult<IOrder>(invalidOrder);
         }
 
-        // Create validated order with calculated line totals
+        // Create validated order with calculated line totals and Value Objects
         var validatedLines = order.Lines
             .Select(ValidatedOrderLine.CreateFrom)
             .ToList();
 
+        // Create VOs for validated data
+        var customerId = CustomerId.Create(order.UserId);
+        var street = !string.IsNullOrWhiteSpace(order.Street) ? Street.Create(order.Street) : null;
+        var city = !string.IsNullOrWhiteSpace(order.City) ? City.Create(order.City) : null;
+        var postalCode = !string.IsNullOrWhiteSpace(order.PostalCode) ? PostalCode.Create(order.PostalCode) : null;
+        var phone = PhoneNumber.Create(order.Phone);
+        var email = !string.IsNullOrWhiteSpace(order.Email) ? EmailAddress.Create(order.Email) : null;
+        var deliveryNotes = !string.IsNullOrWhiteSpace(order.DeliveryNotes) ? DeliveryNotes.Create(order.DeliveryNotes) : null;
+
         var validatedOrder = new ValidatedOrder(
             validatedLines,
-            order.UserId,
-            order.Street,
-            order.City,
-            order.PostalCode,
-            order.Phone,
-            order.Email,
-            order.DeliveryNotes,
+            customerId,
+            street,
+            city,
+            postalCode,
+            phone,
+            email,
+            deliveryNotes,
             order.PremiumSubscription,
             pickupMethod!,
             pickupPointId,

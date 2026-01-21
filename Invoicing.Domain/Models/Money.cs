@@ -14,16 +14,9 @@ public sealed record Money
         Value = Math.Round(value, 2);
     }
 
-    public static Money Zero => new(0);
-
-    public Money Add(Money other) => new(Value + other.Value);
-    public Money Subtract(Money other) => new(Value - other.Value);
-    public Money Multiply(decimal factor) => new(Value * factor);
-
-    /// <summary>
-    /// Calculate tax (VAT) at given percentage
-    /// </summary>
-    public Money CalculateTax(decimal taxRate) => new(Value * taxRate / 100);
+    public Money Add(Money other) => new Money(Value + other.Value);
+    
+    public Money Subtract(Money other) => new Money(Value - other.Value);
 
     public override string ToString() => $"{Value:C}";
 }

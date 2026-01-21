@@ -1,4 +1,5 @@
 using SharedKernel;
+using SharedKernel.StateMachine;
 
 namespace Ordering.Domain.Models;
 
@@ -13,10 +14,7 @@ public enum OrderState
     Priced,
     Persistable,
     Persisted,
-    Published,
-    Cancelled,    // Order was cancelled
-    Modified,     // Order was modified
-    Returned      // Order was returned
+    Published
 }
 
 /// <summary>
@@ -26,18 +24,14 @@ public static class Order
 {
     /// <summary>
     /// Defines allowed state transitions for Order
-    /// Business Rules:
-    /// - Can cancel before Published (Persisted → Cancelled)
-    /// - Can modify before shipped (Published → Modified → re-validate)
-    /// - Can return after shipped (Published → Returned)
+    /// Simple linear flow: Unvalidated → Validated → Priced → Persistable → Persisted → Published
     /// </summary>
     public static readonly StateTransitionMap<OrderState> Transitions = new StateTransitionMap<OrderState>()
         .Allow(OrderState.Unvalidated, OrderState.Validated, OrderState.Invalid)
         .Allow(OrderState.Validated, OrderState.Priced, OrderState.Invalid)
         .Allow(OrderState.Priced, OrderState.Persistable)
         .Allow(OrderState.Persistable, OrderState.Persisted)
-        .Allow(OrderState.Persisted, OrderState.Published, OrderState.Cancelled)
-        .Allow(OrderState.Published, OrderState.Modified, OrderState.Returned, OrderState.Cancelled);
+        .Allow(OrderState.Persisted, OrderState.Published);
 
     /// <summary>
     /// Marker interface for all order states
@@ -53,9 +47,6 @@ public static class Order
             PersistableOrder => OrderState.Persistable,
             PersistedOrder => OrderState.Persisted,
             PublishedOrder => OrderState.Published,
-            CancelledOrder => OrderState.Cancelled,
-            ModifiedOrder => OrderState.Modified,
-            ReturnedOrder => OrderState.Returned,
             _ => throw new InvalidOperationException($"Unknown order state: {GetType().Name}")
         };
 
@@ -126,17 +117,18 @@ public static class Order
 
     /// <summary>
     /// Represents a validated order with all validation passed
+    /// Uses Value Objects for validated data
     /// </summary>
     public record ValidatedOrder : IOrder
     {
         internal ValidatedOrder(IReadOnlyCollection<ValidatedOrderLine> lines,
-            Guid userId,
-            string? street,
-            string? city,
-            string? postalCode,
-            string phone,
-            string? email,
-            string? deliveryNotes,
+            CustomerId userId,
+            Street? street,
+            City? city,
+            PostalCode? postalCode,
+            PhoneNumber phone,
+            EmailAddress? email,
+            DeliveryNotes? deliveryNotes,
             bool premiumSubscription,
             PickupMethod pickupMethod,
             PickupPointId? pickupPointId,
@@ -157,13 +149,13 @@ public static class Order
         }
 
         public IReadOnlyCollection<ValidatedOrderLine> Lines { get; }
-        public Guid UserId { get; }
-        public string? Street { get; }
-        public string? City { get; }
-        public string? PostalCode { get; }
-        public string Phone { get; }
-        public string? Email { get; }
-        public string? DeliveryNotes { get; }
+        public CustomerId UserId { get; }
+        public Street? Street { get; }
+        public City? City { get; }
+        public PostalCode? PostalCode { get; }
+        public PhoneNumber Phone { get; }
+        public EmailAddress? Email { get; }
+        public DeliveryNotes? DeliveryNotes { get; }
         public bool PremiumSubscription { get; }
         public PickupMethod PickupMethod { get; }
         public PickupPointId? PickupPointId { get; }
@@ -172,21 +164,22 @@ public static class Order
 
     /// <summary>
     /// Represents an order with calculated total price (with optional voucher discount)
+    /// Uses Value Objects for validated data
     /// </summary>
     public record PricedOrder : IOrder
     {
         internal PricedOrder(IReadOnlyCollection<ValidatedOrderLine> lines,
-            Guid userId,
-            string? street,
-            string? city,
-            string? postalCode,
-            string phone,
-            string? email,
-            string? deliveryNotes,
+            CustomerId userId,
+            Street? street,
+            City? city,
+            PostalCode? postalCode,
+            PhoneNumber phone,
+            EmailAddress? email,
+            DeliveryNotes? deliveryNotes,
             decimal subtotal,
             decimal discountAmount,
             decimal total,
-            string? voucherCode,
+            VoucherCode? voucherCode,
             bool premiumSubscription,
             PickupMethod pickupMethod,
             PickupPointId? pickupPointId,
@@ -211,43 +204,42 @@ public static class Order
         }
 
         public IReadOnlyCollection<ValidatedOrderLine> Lines { get; }
-        public Guid UserId { get; }
-        public string? Street { get; }
-        public string? City { get; }
-        public string? PostalCode { get; }
-        public string Phone { get; }
-        public string? Email { get; }
-        public string? DeliveryNotes { get; }
+        public CustomerId UserId { get; }
+        public Street? Street { get; }
+        public City? City { get; }
+        public PostalCode? PostalCode { get; }
+        public PhoneNumber Phone { get; }
+        public EmailAddress? Email { get; }
+        public DeliveryNotes? DeliveryNotes { get; }
         public decimal Subtotal { get; }
         public decimal DiscountAmount { get; }
         public decimal Total { get; }
-        public string? VoucherCode { get; }
+        public VoucherCode? VoucherCode { get; }
         public bool PremiumSubscription { get; }
         public PickupMethod PickupMethod { get; }
         public PickupPointId? PickupPointId { get; }
         public PaymentMethod PaymentMethod { get; }
         
-        // For backwards compatibility
-        public decimal TotalPrice => Total;
     }
 
     /// <summary>
     /// Represents an order that has been persisted to the database
+    /// Uses Value Objects for domain data
     /// </summary>
     public record PersistedOrder : IOrder
     {
         internal PersistedOrder(Guid orderId,
             IReadOnlyCollection<ValidatedOrderLine> lines,
-            Guid userId,
-            string? street,
-            string? city,
-            string? postalCode,
-            string phone,
-            string? email,
+            CustomerId userId,
+            Street? street,
+            City? city,
+            PostalCode? postalCode,
+            PhoneNumber phone,
+            EmailAddress? email,
             decimal subtotal,
             decimal discountAmount,
             decimal total,
-            string? voucherCode,
+            VoucherCode? voucherCode,
             bool premiumSubscription,
             PickupMethod pickupMethod,
             PickupPointId? pickupPointId,
@@ -275,24 +267,22 @@ public static class Order
 
         public Guid OrderId { get; }
         public IReadOnlyCollection<ValidatedOrderLine> Lines { get; }
-        public Guid UserId { get; }
-        public string? Street { get; }
-        public string? City { get; }
-        public string? PostalCode { get; }
-        public string Phone { get; }
-        public string? Email { get; }
+        public CustomerId UserId { get; }
+        public Street? Street { get; }
+        public City? City { get; }
+        public PostalCode? PostalCode { get; }
+        public PhoneNumber Phone { get; }
+        public EmailAddress? Email { get; }
         public decimal Subtotal { get; }
         public decimal DiscountAmount { get; }
         public decimal Total { get; }
-        public string? VoucherCode { get; }
+        public VoucherCode? VoucherCode { get; }
         public bool PremiumSubscription { get; }
         public PickupMethod PickupMethod { get; }
         public PickupPointId? PickupPointId { get; }
         public PaymentMethod PaymentMethod { get; }
         public DateTime CreatedAt { get; }
         
-        // For backwards compatibility
-        public decimal TotalPrice => Total;
     }
 
     /// <summary>
@@ -352,9 +342,7 @@ public static class Order
         public string PickupMethod { get; }
         public string? PickupPointId { get; }
         public string PaymentMethod { get; }
-        
-        // For backwards compatibility
-        public decimal TotalPrice => Total;
+
     }
 
     /// <summary>
@@ -370,22 +358,23 @@ public static class Order
 
     /// <summary>
     /// Represents an order that has been published to the event bus
+    /// Uses Value Objects for domain data
     /// </summary>
     public record PublishedOrder : IOrder
     {
         internal PublishedOrder(
             Guid orderId,
             IReadOnlyCollection<ValidatedOrderLine> lines,
-            Guid userId,
-            string? street,
-            string? city,
-            string? postalCode,
-            string phone,
-            string? email,
+            CustomerId userId,
+            Street? street,
+            City? city,
+            PostalCode? postalCode,
+            PhoneNumber phone,
+            EmailAddress? email,
             decimal subtotal,
             decimal discountAmount,
             decimal total,
-            string? voucherCode,
+            VoucherCode? voucherCode,
             bool premiumSubscription,
             PickupMethod pickupMethod,
             PickupPointId? pickupPointId,
@@ -413,16 +402,16 @@ public static class Order
 
         public Guid OrderId { get; }
         public IReadOnlyCollection<ValidatedOrderLine> Lines { get; }
-        public Guid UserId { get; }
-        public string? Street { get; }
-        public string? City { get; }
-        public string? PostalCode { get; }
-        public string Phone { get; }
-        public string? Email { get; }
+        public CustomerId UserId { get; }
+        public Street? Street { get; }
+        public City? City { get; }
+        public PostalCode? PostalCode { get; }
+        public PhoneNumber Phone { get; }
+        public EmailAddress? Email { get; }
         public decimal Subtotal { get; }
         public decimal DiscountAmount { get; }
         public decimal Total { get; }
-        public string? VoucherCode { get; }
+        public VoucherCode? VoucherCode { get; }
         public bool PremiumSubscription { get; }
         public PickupMethod PickupMethod { get; }
         public PickupPointId? PickupPointId { get; }
@@ -431,93 +420,6 @@ public static class Order
         
         // For backwards compatibility
         public decimal TotalPrice => Total;
-    }
-
-    /// <summary>
-    /// Represents an order that has been cancelled
-    /// </summary>
-    public record CancelledOrder : IOrder
-    {
-        public CancelledOrder(
-            Guid orderId,
-            Guid userId,
-            string reason,
-            DateTime cancelledAt)
-        {
-            OrderId = orderId;
-            UserId = userId;
-            Reason = reason;
-            CancelledAt = cancelledAt;
-        }
-
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public string Reason { get; }
-        public DateTime CancelledAt { get; }
-    }
-
-    /// <summary>
-    /// Represents an order that has been modified
-    /// </summary>
-    public record ModifiedOrder : IOrder
-    {
-        public ModifiedOrder(
-            Guid orderId,
-            Guid userId,
-            IReadOnlyCollection<ValidatedOrderLine> lines,
-            string street,
-            string city,
-            string postalCode,
-            string phone,
-            string? email,
-            decimal totalPrice,
-            DateTime modifiedAt)
-        {
-            OrderId = orderId;
-            UserId = userId;
-            Lines = lines;
-            Street = street;
-            City = city;
-            PostalCode = postalCode;
-            Phone = phone;
-            Email = email;
-            TotalPrice = totalPrice;
-            ModifiedAt = modifiedAt;
-        }
-
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public IReadOnlyCollection<ValidatedOrderLine> Lines { get; }
-        public string Street { get; }
-        public string City { get; }
-        public string PostalCode { get; }
-        public string Phone { get; }
-        public string? Email { get; }
-        public decimal TotalPrice { get; }
-        public DateTime ModifiedAt { get; }
-    }
-
-    /// <summary>
-    /// Represents an order that has been returned by customer
-    /// </summary>
-    public record ReturnedOrder : IOrder
-    {
-        public ReturnedOrder(
-            Guid orderId,
-            Guid userId,
-            string returnReason,
-            DateTime returnedAt)
-        {
-            OrderId = orderId;
-            UserId = userId;
-            ReturnReason = returnReason;
-            ReturnedAt = returnedAt;
-        }
-
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public string ReturnReason { get; }
-        public DateTime ReturnedAt { get; }
     }
 }
 

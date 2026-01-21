@@ -17,7 +17,7 @@ public class PlaceOrderWorkflow
     private readonly MakePersistableOrderOperation _makePersistableOperation;
     private readonly PersistOrderOperation _persistOperation;
     private readonly PublishOrderPlacedOperation _publishOperation;
-    private readonly IPersistence _persistence;
+    private readonly IOrderRepository _orderRepository;
     private readonly IOrderEventPublisher _eventPublisher;
     private readonly ILogger<PlaceOrderWorkflow> _logger;
 
@@ -27,7 +27,7 @@ public class PlaceOrderWorkflow
         MakePersistableOrderOperation makePersistableOperation,
         PersistOrderOperation persistOperation,
         PublishOrderPlacedOperation publishOperation,
-        IPersistence persistence,
+        IOrderRepository orderRepository,
         IOrderEventPublisher eventPublisher,
         ILogger<PlaceOrderWorkflow> logger)
     {
@@ -36,7 +36,7 @@ public class PlaceOrderWorkflow
         _makePersistableOperation = makePersistableOperation;
         _persistOperation = persistOperation;
         _publishOperation = publishOperation;
-        _persistence = persistence;
+        _orderRepository = orderRepository;
         _eventPublisher = eventPublisher;
         _logger = logger;
     }
@@ -78,7 +78,7 @@ public class PlaceOrderWorkflow
             _logger.LogInformation("MakePersistable result: {OrderType}", order.GetType().Name);
 
             // Step 4: Persist (PersistableOrder -> PersistedOrder)
-            order = await _persistOperation.TransformAsync(order, _persistence, cancellationToken);
+            order = await _persistOperation.TransformAsync(order, _orderRepository, cancellationToken);
             _logger.LogInformation("Persist result: {OrderType}", order.GetType().Name);
 
             // Step 5: Publish (PersistedOrder -> PublishedOrder)

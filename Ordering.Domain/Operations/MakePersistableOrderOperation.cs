@@ -11,7 +11,7 @@ public class MakePersistableOrderOperation : OrderOperation
 {
     protected override Task<IOrder> OnPricedAsync(PricedOrder order, CancellationToken cancellationToken)
     {
-        // Map ValidatedOrderLines to PersistableOrderLines
+        // Map ValidatedOrderLines to PersistableOrderLines (vo->primitive)
         var persistableLines = order.Lines
             .Select(line => new PersistableOrderLine(
                 Name: line.Name.Value,
@@ -25,17 +25,17 @@ public class MakePersistableOrderOperation : OrderOperation
 
         var persistableOrder = new PersistableOrder(
             lines: persistableLines,
-            userId: order.UserId,
-            street: order.Street,
-            city: order.City,
-            postalCode: order.PostalCode,
-            phone: order.Phone,
-            email: order.Email,
-            deliveryNotes: order.DeliveryNotes,
+            userId: order.UserId.Value,
+            street: order.Street?.Value,
+            city: order.City?.Value,
+            postalCode: order.PostalCode?.Value,
+            phone: order.Phone.Value,
+            email: order.Email?.Value,
+            deliveryNotes: order.DeliveryNotes?.Value,
             subtotal: order.Subtotal,
             discountAmount: order.DiscountAmount,
             total: order.Total,
-            voucherCode: order.VoucherCode,
+            voucherCode: order.VoucherCode?.Value,
             premiumSubscription: order.PremiumSubscription,
             pickupMethod: order.PickupMethod.Value,
             pickupPointId: order.PickupPointId?.Value,

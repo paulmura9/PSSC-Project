@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Ordering.Domain.Models;
 
 namespace Ordering.Api.DTOs;
 
@@ -17,19 +16,19 @@ public class PlaceOrderRequest
     /// <summary>
     /// Street address (required for HomeDelivery, optional for pickup methods)
     /// </summary>
-    [StringLength(200, MinimumLength = 5, ErrorMessage = "Street must be between 5 and 200 characters")]
+    [StringLength(200, ErrorMessage = "Street cannot exceed 200 characters")]
     public string? Street { get; set; }
 
     /// <summary>
     /// City name (required for HomeDelivery, optional for pickup methods)
     /// </summary>
-    [StringLength(100, MinimumLength = 2, ErrorMessage = "City must be between 2 and 100 characters")]
+    [StringLength(100, ErrorMessage = "City cannot exceed 100 characters")]
     public string? City { get; set; }
 
     /// <summary>
     /// Postal code (required for HomeDelivery, optional for pickup methods)
     /// </summary>
-    [RegularExpression(@"^\d{5,6}$", ErrorMessage = "Postal code must be 5-6 digits")]
+    [RegularExpression(@"^(\d{5,6})?$", ErrorMessage = "Postal code must be 5-6 digits")]
     public string? PostalCode { get; set; }
 
     /// <summary>
@@ -96,30 +95,5 @@ public class PlaceOrderRequest
     [RegularExpression(@"^(CashOnDelivery|CardOnDelivery|CardOnline)$", 
         ErrorMessage = "Payment method must be CashOnDelivery, CardOnDelivery, or CardOnline")]
     public string PaymentMethod { get; set; } = "CashOnDelivery";
-
-    /// <summary>
-    /// Converts all fields to domain Value Objects (composite structure)
-    /// </summary>
-    public PlaceOrderDomainData ToDomain()
-    {
-        return new PlaceOrderDomainData(
-            CustomerId.Create(UserId),
-            Street != null && City != null && PostalCode != null 
-                ? DeliveryAddress.Create(Street, City, PostalCode) 
-                : null,
-            ContactInfo.Create(Phone, Email),
-            DeliveryNotes != null ? Ordering.Domain.Models.DeliveryNotes.Create(DeliveryNotes) : null
-        );
-    }
 }
-
-/// <summary>
-/// Domain data with composite Value Objects for order placement
-/// </summary>
-public record PlaceOrderDomainData(
-    CustomerId CustomerId,
-    DeliveryAddress? DeliveryAddress,
-    ContactInfo ContactInfo,
-    DeliveryNotes? DeliveryNotes
-);
 

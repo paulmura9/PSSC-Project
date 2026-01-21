@@ -6,6 +6,7 @@ namespace Ordering.Infrastructure.Persistence;
 /// Database context for the Ordering bounded context
 /// Uses 'ordering' schema to isolate tables from other bounded contexts
 /// </summary>
+/// scaffolding 
 public class OrderingDbContext : DbContext
 {
     private const string Schema = "ordering";
@@ -57,7 +58,7 @@ public class OrderingDbContext : DbContext
             entity.Property(e => e.DiscountAmount).HasPrecision(18, 2);
             entity.Property(e => e.Total).HasPrecision(18, 2);
             entity.Property(e => e.VoucherCode).HasMaxLength(64);
-            entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Pending");
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Sent");
             entity.Property(e => e.CreatedAt).IsRequired();
             
             // Ignore TotalPrice - it's a computed property for backwards compatibility

@@ -1,5 +1,6 @@
 using Invoicing.Events;
 using Invoicing.Operations;
+using SharedKernel.Invoicing;
 using Microsoft.Extensions.Logging;
 
 namespace Invoicing.Workflows;

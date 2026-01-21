@@ -18,6 +18,7 @@ public class VoucherRepository : IVoucherRepository
         _context = context;
     }
 
+    //SELECT * FROM Vouchers 
     public async Task<VoucherData?> GetActiveByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         var normalizedCode = code.Trim().ToUpperInvariant();
@@ -41,6 +42,7 @@ public class VoucherRepository : IVoucherRepository
         };
     }
 
+    //UPDATE scade
     public async Task<bool> TryConsumeAsync(Guid voucherId, CancellationToken cancellationToken = default)
     {
         // Use raw SQL for atomic update with concurrency check

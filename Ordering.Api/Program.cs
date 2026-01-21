@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Ordering.Domain.Operations;
 using Ordering.Domain.Workflows;
+using Ordering.Infrastructure;
 using Ordering.Infrastructure.Persistence;
 using Ordering.Infrastructure.Repository;
 using SharedKernel;
@@ -15,28 +16,40 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configure EF Core with Azure SQL
-builder.Services.AddDbContext<OrderingDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("psscDB")));
-
-// Register persistence
-builder.Services.AddScoped<IPersistence, EfCorePersistence>();
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-builder.Services.AddScoped<IVoucherRepository, VoucherRepository>();
+// Configure EF Core with Azure SQL using extension method (like Shipment/Invoicing)
+var connectionString = builder.Configuration.GetConnectionString("psscDB");
+if (!string.IsNullOrWhiteSpace(connectionString))
+{
+    builder.Services.AddOrderingInfrastructure(connectionString);
+}
+else
+{
+    Console.WriteLine("WARNING: ConnectionStrings:psscDB not configured. Database features disabled.");
+}
 
 // Register event bus (singleton - manages internal Service Bus client)
-builder.Services.AddSingleton<IEventBus, AzureServiceBusEventBus>();
+// Falls back to NoOpEventBus if ServiceBus connection string is not configured
+var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
+if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
+{
+    Console.WriteLine("WARNING: ServiceBus:ConnectionString not configured. Using NoOpEventBus (events will not be sent).");
+}
+else
+{
+    builder.Services.AddSingleton<IEventBus, AzureServiceBusEventBus>();
+}
 
 // Register CSV event history service for local tracking
 var csvPath = Path.Combine(AppContext.BaseDirectory, "ordering_event_history.csv");
 builder.Services.AddSingleton<IEventHistoryService>(new CsvEventHistoryService(csvPath));
-Console.WriteLine($"Event history CSV: {csvPath}");
+Console.WriteLine($"========================================");
+Console.WriteLine($"Event history CSV will be saved to:");
+Console.WriteLine($"  {csvPath}");
+Console.WriteLine($"========================================");
 
 // Register event publisher
 builder.Services.AddScoped<IOrderEventPublisher, ServiceBusOrderEventPublisher>();
 
-// Register repository for order queries
-builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 // Register operations
 builder.Services.AddScoped<ValidateOrderOperation>();

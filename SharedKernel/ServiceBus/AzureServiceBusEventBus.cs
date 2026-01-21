@@ -26,6 +26,22 @@ public class AzureServiceBusEventBus : IEventBus, IAsyncDisposable
         _logger.LogInformation("Azure Service Bus client initialized");
     }
 
+    /// <summary>
+    /// Alternative constructor that accepts connection string directly
+    /// Used when different connection strings are needed for different topics
+    /// </summary>
+    /// cand si consuma si publica
+    public AzureServiceBusEventBus(string connectionString, ILogger<AzureServiceBusEventBus> logger)
+    {
+        _logger = logger;
+        
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new ArgumentNullException(nameof(connectionString), "Connection string is required");
+
+        _client = new ServiceBusClient(connectionString);
+        _logger.LogInformation("Azure Service Bus client initialized with direct connection string");
+    }
+
     public async Task PublishAsync<TEvent>(string topicName, TEvent @event, CancellationToken cancellationToken = default)
         where TEvent : IntegrationEvent
     {
@@ -44,7 +60,7 @@ public class AzureServiceBusEventBus : IEventBus, IAsyncDisposable
 
         message.ApplicationProperties["EventType"] = eventTypeName;
 
-        await sender.SendMessageAsync(message, cancellationToken);
+        await sender.SendMessageAsync(message, cancellationToken); //trimite mesajul
         
         _logger.LogInformation("Published {EventType} to topic {TopicName} with MessageId {MessageId}", 
             eventTypeName, topicName, message.MessageId);
@@ -64,7 +80,7 @@ public class AzureServiceBusEventBus : IEventBus, IAsyncDisposable
     }
 
     public async ValueTask DisposeAsync()
-    {
+    {// Închide toate senderele
         foreach (var sender in _senders.Values)
         {
             await sender.DisposeAsync();

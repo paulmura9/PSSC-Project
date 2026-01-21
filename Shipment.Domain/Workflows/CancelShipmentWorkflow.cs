@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Shipment.Domain.Operations;
+using SharedKernel.Shipment;
 
 namespace Shipment.Domain.Workflows;
 

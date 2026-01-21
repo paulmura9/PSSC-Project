@@ -41,8 +41,19 @@ public class ApplyVoucherOperation
             return CreatePricedOrder(order, subtotal, 0, subtotal, null);
         }
 
-        // Normalize voucher code
-        var normalizedCode = voucherCode.Trim().ToUpperInvariant();
+        // Validate and normalize voucher code using VO
+        var voucherCodeVo = VoucherCode.TryCreate(voucherCode);
+        if (voucherCodeVo == null)
+        {
+            _logger.LogWarning("Invalid voucher code format: {VoucherCode}", voucherCode);
+            return new InvalidOrder(
+                order.Lines.Select(l => UnvalidatedOrderLine.Create(
+                    l.Name.Value, l.Description.Value, l.Category.Value,
+                    l.Quantity.Value, l.UnitPrice.Value)).ToList().AsReadOnly(),
+                new[] { "Invalid voucher code format" });
+        }
+
+        var normalizedCode = voucherCodeVo.Value;
         _logger.LogInformation("Applying voucher code: {VoucherCode}", normalizedCode);
 
         // Get voucher from repository
@@ -104,6 +115,10 @@ public class ApplyVoucherOperation
         decimal total,
         string? voucherCode)
     {
+        var voucherCodeVo = !string.IsNullOrWhiteSpace(voucherCode) 
+            ? VoucherCode.Create(voucherCode) 
+            : null;
+            
         return new PricedOrder(
             order.Lines,
             order.UserId,
@@ -116,7 +131,7 @@ public class ApplyVoucherOperation
             subtotal,
             discountAmount,
             total,
-            voucherCode,
+            voucherCodeVo,
             order.PremiumSubscription,
             order.PickupMethod,
             order.PickupPointId,

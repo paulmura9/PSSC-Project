@@ -1,7 +1,8 @@
 namespace Shipment.Domain.Models;
 
 /// <summary>
-/// Value Object representing a quantity
+/// Value Object representing a quantity in shipment
+/// Data comes pre-validated from Ordering
 /// </summary>
 public sealed record Quantity
 {
@@ -9,11 +10,6 @@ public sealed record Quantity
 
     public Quantity(int value)
     {
-        if (value <= 0)
-            throw new ArgumentException("Quantity must be greater than zero", nameof(value));
-        
-        if (value > 10000)
-            throw new ArgumentException("Quantity cannot exceed 10,000", nameof(value));
 
         Value = value;
     }

@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Ordering.Domain.Models;
 using Ordering.Domain.Operations;
+using Ordering.Infrastructure.Persistence;
 
-namespace Ordering.Infrastructure.Persistence;
+namespace Ordering.Infrastructure.Repository;
 
 /// <summary>
 /// EF Core implementation of product repository
@@ -35,6 +36,7 @@ public class ProductRepository : IProductRepository
         );
     }
 
+    //UPDATA scade stocul
     public async Task<bool> ReserveStockAsync(string productName, int quantity, CancellationToken ct = default)
     {
         var product = await _dbContext.Products

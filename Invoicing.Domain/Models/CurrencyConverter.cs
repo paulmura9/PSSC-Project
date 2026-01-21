@@ -22,34 +22,5 @@ public static class CurrencyConverter
     {
         return Math.Round(ronAmount * RonToEurRate, 2);
     }
-
-    /// <summary>
-    /// Converts EUR amount to RON (for reference only)
-    /// </summary>
-    /// <param name="eurAmount">Amount in EUR</param>
-    /// <returns>Equivalent amount in RON</returns>
-    public static decimal ConvertEurToRon(decimal eurAmount)
-    {
-        return Math.Round(eurAmount / RonToEurRate, 2);
-    }
-
-    /// <summary>
-    /// Gets the display amount based on requested currency
-    /// </summary>
-    /// <param name="ronAmount">Original amount in RON</param>
-    /// <param name="currency">Requested display currency</param>
-    /// <returns>Amount in requested currency</returns>
-    public static decimal GetDisplayAmount(decimal ronAmount, Currency currency)
-    {
-        return currency.IsEur ? ConvertRonToEur(ronAmount) : ronAmount;
-    }
-
-    /// <summary>
-    /// Gets the currency symbol
-    /// </summary>
-    public static string GetSymbol(Currency currency)
-    {
-        return currency.IsEur ? "€" : "RON";
-    }
 }
 

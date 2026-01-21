@@ -1,4 +1,5 @@
 using SharedKernel;
+using SharedKernel.StateMachine;
 
 namespace Invoicing.Models;
 
@@ -222,6 +223,9 @@ public static class Invoice
         public DateTime InvoiceDate { get; }
         public DateTime DueDate { get; }
         public DateTime PersistedAt { get; }
+        public Currency DisplayCurrency { get; }
+        public decimal TotalInRon { get; }
+        public decimal TotalInEur { get; }
 
         public PersistedInvoice(CalculatedInvoice calculated, DateTime persistedAt)
         {
@@ -238,6 +242,9 @@ public static class Invoice
             InvoiceDate = calculated.InvoiceDate;
             DueDate = calculated.DueDate;
             PersistedAt = persistedAt;
+            DisplayCurrency = calculated.DisplayCurrency;
+            TotalInRon = calculated.TotalInRon;
+            TotalInEur = calculated.TotalInEur;
         }
     }
 
@@ -251,8 +258,17 @@ public static class Invoice
         public Guid ShipmentId { get; }
         public Guid OrderId { get; }
         public Guid UserId { get; }
+        public TrackingNumber TrackingNumber { get; }
+        public Money SubTotal { get; }
+        public Money Tax { get; }
         public Money TotalAmount { get; }
+        public IReadOnlyCollection<InvoiceLine> Lines { get; }
+        public DateTime InvoiceDate { get; }
+        public DateTime DueDate { get; }
         public DateTime PublishedAt { get; }
+        public Currency DisplayCurrency { get; }
+        public decimal TotalInRon { get; }
+        public decimal TotalInEur { get; }
 
         public PublishedInvoice(PersistedInvoice persisted, DateTime publishedAt)
         {
@@ -261,8 +277,17 @@ public static class Invoice
             ShipmentId = persisted.ShipmentId;
             OrderId = persisted.OrderId;
             UserId = persisted.UserId;
+            TrackingNumber = persisted.TrackingNumber;
+            SubTotal = persisted.SubTotal;
+            Tax = persisted.Tax;
             TotalAmount = persisted.TotalAmount;
+            Lines = persisted.Lines;
+            InvoiceDate = persisted.InvoiceDate;
+            DueDate = persisted.DueDate;
             PublishedAt = publishedAt;
+            DisplayCurrency = persisted.DisplayCurrency;
+            TotalInRon = persisted.TotalInRon;
+            TotalInEur = persisted.TotalInEur;
         }
     }
 
@@ -326,5 +351,61 @@ public static class Invoice
         {
         }
     }
+
+    /// <summary>
+    /// Extension method to convert invoice state to event (Lab-style pattern)
+    /// </summary>
+    public static Events.IInvoiceGeneratedEvent ToEvent(this IInvoice invoice) => invoice switch
+    {
+        CreatedInvoice _ => new Events.InvoiceGenerationFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected created state" } 
+        },
+        InvalidInvoice invalid => new Events.InvoiceGenerationFailedEvent 
+        { 
+            OrderId = invalid.OrderId,
+            Reasons = invalid.Reasons 
+        },
+        CalculatedInvoice _ => new Events.InvoiceGenerationFailedEvent 
+        { 
+            Reasons = new[] { "Unexpected calculated state" } 
+        },
+        PersistedInvoice persisted => new Events.InvoiceGeneratedEvent
+        {
+            InvoiceId = persisted.InvoiceId,
+            InvoiceNumber = persisted.InvoiceNumber.Value,
+            ShipmentId = persisted.ShipmentId,
+            OrderId = persisted.OrderId,
+            UserId = persisted.UserId,
+            SubTotal = persisted.SubTotal.Value,
+            Tax = persisted.Tax.Value,
+            TotalAmount = persisted.TotalAmount.Value,
+            GeneratedAt = DateTime.UtcNow,
+            Currency = persisted.DisplayCurrency.Value,
+            TotalInRon = persisted.TotalInRon,
+            TotalInEur = persisted.TotalInEur
+        },
+        PublishedInvoice published => new Events.InvoiceGeneratedEvent
+        {
+            InvoiceId = published.InvoiceId,
+            InvoiceNumber = published.InvoiceNumber.Value,
+            ShipmentId = published.ShipmentId,
+            OrderId = published.OrderId,
+            UserId = published.UserId,
+            SubTotal = published.SubTotal.Value,
+            Tax = published.Tax.Value,
+            TotalAmount = published.TotalAmount.Value,
+            GeneratedAt = published.PublishedAt,
+            Currency = published.DisplayCurrency.Value,
+            TotalInRon = published.TotalInRon,
+            TotalInEur = published.TotalInEur
+        },
+        CancelledInvoice cancelled => new Events.InvoiceGenerationFailedEvent 
+        { 
+            OrderId = cancelled.OrderId,
+            Reasons = new[] { $"Invoice cancelled: {cancelled.CancellationReason}" } 
+        },
+        _ => throw new NotImplementedException($"Unknown invoice state: {invoice.GetType().Name}")
+    };
 }
 

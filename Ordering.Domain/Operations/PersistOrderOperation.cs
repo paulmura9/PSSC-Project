@@ -7,11 +7,11 @@ namespace Ordering.Domain.Operations;
 /// Operation that persists a PersistableOrder to the database
 /// PersistableOrder -> PersistedOrder
 /// </summary>
-public class PersistOrderOperation : OrderOperationWithState<IPersistence>
+public class PersistOrderOperation : OrderOperationWithState<IOrderRepository>
 {
-    protected override async Task<IOrder> OnPersistableAsync(PersistableOrder order, IPersistence persistence, CancellationToken cancellationToken)
+    protected override async Task<IOrder> OnPersistableAsync(PersistableOrder order, IOrderRepository repository, CancellationToken cancellationToken)
     {
-        var orderId = await persistence.SaveOrderAsync(order, cancellationToken);
+        var orderId = await repository.SaveOrderAsync(order, cancellationToken);
 
         // Convert PersistableOrderLines back to ValidatedOrderLines for PersistedOrder
         var validatedLines = order.Lines
@@ -27,16 +27,16 @@ public class PersistOrderOperation : OrderOperationWithState<IPersistence>
         var persistedOrder = new PersistedOrder(
             orderId: orderId,
             lines: validatedLines,
-            userId: order.UserId,
-            street: order.Street,
-            city: order.City,
-            postalCode: order.PostalCode,
-            phone: order.Phone,
-            email: order.Email,
+            userId: CustomerId.Create(order.UserId),
+            street: !string.IsNullOrWhiteSpace(order.Street) ? Street.Create(order.Street) : null,
+            city: !string.IsNullOrWhiteSpace(order.City) ? City.Create(order.City) : null,
+            postalCode: !string.IsNullOrWhiteSpace(order.PostalCode) ? PostalCode.Create(order.PostalCode) : null,
+            phone: PhoneNumber.Create(order.Phone),
+            email: !string.IsNullOrWhiteSpace(order.Email) ? EmailAddress.Create(order.Email) : null,
             subtotal: order.Subtotal,
             discountAmount: order.DiscountAmount,
             total: order.Total,
-            voucherCode: order.VoucherCode,
+            voucherCode: !string.IsNullOrWhiteSpace(order.VoucherCode) ? VoucherCode.Create(order.VoucherCode) : null,
             premiumSubscription: order.PremiumSubscription,
             pickupMethod: new PickupMethod(order.PickupMethod),
             pickupPointId: order.PickupPointId != null ? new PickupPointId(order.PickupPointId) : null,

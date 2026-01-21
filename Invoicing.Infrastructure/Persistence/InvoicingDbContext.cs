@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 
 namespace Invoicing.Infrastructure.Persistence;
 
@@ -43,6 +43,8 @@ public class InvoicingDbContext : DbContext
             entity.Property(e => e.Category).HasMaxLength(100);
             entity.Property(e => e.UnitPrice).HasPrecision(18, 2);
             entity.Property(e => e.LineTotal).HasPrecision(18, 2);
+            entity.Property(e => e.VatRate).HasPrecision(18, 4);
+            entity.Property(e => e.VatAmount).HasPrecision(18, 2);
         });
     }
 }

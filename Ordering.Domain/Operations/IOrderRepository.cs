@@ -1,4 +1,5 @@
 using Ordering.Domain.Models;
+using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
 
@@ -7,6 +8,11 @@ namespace Ordering.Domain.Operations;
 /// </summary>
 public interface IOrderRepository
 {
+    /// <summary>
+    /// Saves a new order to the database and returns the generated order ID
+    /// </summary>
+    Task<Guid> SaveOrderAsync(PersistableOrder order, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Gets an order by its ID
     /// </summary>
@@ -52,7 +58,7 @@ public record OrderQueryResult
     public decimal DiscountAmount { get; init; }
     public decimal Total { get; init; }
     public string? VoucherCode { get; init; }
-    public string Status { get; init; } = "Pending";
+    public string Status { get; init; } = "Sent";
     public DateTime CreatedAt { get; init; }
     
     // Pickup/Delivery method

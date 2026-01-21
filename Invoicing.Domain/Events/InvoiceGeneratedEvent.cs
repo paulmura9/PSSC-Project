@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Invoicing.Events;
 
 /// <summary>
@@ -25,6 +27,25 @@ public record InvoiceGeneratedEvent : IInvoiceGeneratedEvent
     public string Currency { get; init; } = "RON";
     public decimal TotalInRon { get; init; }
     public decimal? TotalInEur { get; init; }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("===== Invoice Generated =====");
+        sb.AppendLine($"Invoice: {InvoiceNumber} ({InvoiceId})");
+        sb.AppendLine($"Order ID: {OrderId}");
+        sb.AppendLine($"Shipment ID: {ShipmentId}");
+        sb.AppendLine($"User ID: {UserId}");
+        sb.AppendLine($"SubTotal: {SubTotal:N2} RON");
+        sb.AppendLine($"Tax (VAT): {Tax:N2} RON");
+        sb.AppendLine($"Total: {TotalAmount:N2} RON");
+        if (TotalInEur.HasValue)
+            sb.AppendLine($"Total (EUR): {TotalInEur.Value:N2} EUR");
+        sb.AppendLine($"Generated: {GeneratedAt:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine("=============================");
+        return sb.ToString();
+    }
 }
 
 /// <summary>
@@ -35,5 +56,17 @@ public record InvoiceGenerationFailedEvent : IInvoiceGeneratedEvent
     public Guid ShipmentId { get; init; }
     public Guid OrderId { get; init; }
     public IEnumerable<string> Reasons { get; init; } = Enumerable.Empty<string>();
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("===== Invoice Failed =====");
+        sb.AppendLine($"Shipment ID: {ShipmentId}");
+        sb.AppendLine($"Order ID: {OrderId}");
+        sb.AppendLine($"Reasons: {string.Join(", ", Reasons)}");
+        sb.AppendLine("==========================");
+        return sb.ToString();
+    }
 }
 

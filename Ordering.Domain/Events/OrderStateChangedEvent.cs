@@ -1,4 +1,6 @@
+using System.Text;
 using SharedKernel;
+using Ordering.Domain.Models;
 
 namespace Ordering.Domain.Events;
 
@@ -7,7 +9,8 @@ namespace Ordering.Domain.Events;
 /// Contains OrderStatus to indicate what happened (Placed, Cancelled, Returned, Modified)
 /// This is the ONLY event published to "orders" topic
 /// </summary>
-public record OrderStateChangedEvent : IntegrationEvent
+/// pentru SB
+public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTime.UtcNow)
 {
     /// <summary>
     /// Current status of the order: Placed, Cancelled, Returned, Modified
@@ -34,7 +37,7 @@ public record OrderStateChangedEvent : IntegrationEvent
     /// <summary>
     /// Order lines (for Placed/Modified events)
     /// </summary>
-    public List<OrderLineDto> Lines { get; init; } = new();
+    public List<LineItemDto> Lines { get; init; } = new();
     
     // Address info (nullable for pickup orders)
     public string? Street { get; init; }
@@ -55,30 +58,41 @@ public record OrderStateChangedEvent : IntegrationEvent
     /// </summary>
     public string? Reason { get; init; }
 
-    public OrderStateChangedEvent() : base(Guid.NewGuid(), DateTime.UtcNow) { }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine($"===== Order {OrderStatus} =====");
+        sb.AppendLine($"Order ID: {OrderId}");
+        sb.AppendLine($"User ID: {UserId}");
+        sb.AppendLine($"Premium: {PremiumSubscription}");
+        sb.AppendLine($"Pickup: {PickupMethod}" + (PickupPointId != null ? $" ({PickupPointId})" : ""));
+        sb.AppendLine($"Payment: {PaymentMethod}");
+        
+        if (!string.IsNullOrEmpty(Street))
+            sb.AppendLine($"Address: {Street}, {City} {PostalCode}");
+        
+        sb.AppendLine($"Phone: {Phone}");
+        
+        if (Lines.Count > 0)
+        {
+            sb.AppendLine("Lines:");
+            foreach (var line in Lines)
+                sb.AppendLine(line.ToString());
+        }
+        
+        sb.AppendLine($"Subtotal: {Subtotal:C}");
+        if (DiscountAmount > 0)
+            sb.AppendLine($"Discount: -{DiscountAmount:C}" + (!string.IsNullOrEmpty(VoucherCode) ? $" ({VoucherCode})" : ""));
+        sb.AppendLine($"Total: {Total:C}");
+        
+        if (!string.IsNullOrEmpty(Reason))
+            sb.AppendLine($"Reason: {Reason}");
+        
+        sb.AppendLine("=============================");
+        return sb.ToString();
+    }
 }
 
-/// <summary>
-/// DTO for order line in events - uses primitive types for serialization
-/// </summary>
-public record OrderLineDto
-{
-    public string Name { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public string Category { get; init; } = string.Empty;
-    public int Quantity { get; init; }
-    public decimal UnitPrice { get; init; }
-    public decimal LineTotal { get; init; }
-}
-
-/// <summary>
-/// Order status values
-/// </summary>
-public static class OrderStatus
-{
-    public const string Placed = "Placed";
-    public const string Cancelled = "Cancelled";
-    public const string Returned = "Returned";
-    public const string Modified = "Modified";
-}
 

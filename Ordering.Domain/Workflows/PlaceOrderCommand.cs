@@ -8,10 +8,10 @@ namespace Ordering.Domain.Workflows;
 /// </summary>
 public sealed record PlaceOrderCommand
 {
-    public Order.UnvalidatedOrder UnvalidatedOrder { get; }
+    public UnvalidatedOrder UnvalidatedOrder { get; }
     public string? VoucherCode { get; }
 
-    public PlaceOrderCommand(Order.UnvalidatedOrder unvalidatedOrder, string? voucherCode = null)
+    public PlaceOrderCommand(UnvalidatedOrder unvalidatedOrder, string? voucherCode = null)
     {
         UnvalidatedOrder = unvalidatedOrder;
         VoucherCode = voucherCode;

@@ -33,7 +33,7 @@ public class OrderEntity
     // For backwards compatibility - computed property (not mapped to DB)
     public decimal TotalPrice => Total;
     
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = "Sent";
     public DateTime CreatedAt { get; set; }
 
     public ICollection<OrderLineEntity> Lines { get; set; } = new List<OrderLineEntity>();

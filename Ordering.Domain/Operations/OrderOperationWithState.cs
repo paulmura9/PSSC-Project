@@ -1,4 +1,5 @@
 using Ordering.Domain.Exceptions;
+using SharedKernel;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
@@ -14,12 +15,9 @@ public abstract class OrderOperationWithState<TState> : DomainOperation<IOrder, 
         return order switch
         {
             UnvalidatedOrder unvalidated => await OnUnvalidatedAsync(unvalidated, state, cancellationToken),
-            ValidatedOrder validated => await OnValidatedAsync(validated, state, cancellationToken),
-            InvalidOrder invalid => await OnInvalidAsync(invalid, state, cancellationToken),
             PricedOrder priced => await OnPricedAsync(priced, state, cancellationToken),
             PersistableOrder persistable => await OnPersistableAsync(persistable, state, cancellationToken),
             PersistedOrder persisted => await OnPersistedAsync(persisted, state, cancellationToken),
-            PublishedOrder published => await OnPublishedAsync(published, state, cancellationToken),
             _ => throw new InvalidOrderStateException($"Unknown order state: {order.GetType().Name}")
         };
     }
@@ -28,17 +26,7 @@ public abstract class OrderOperationWithState<TState> : DomainOperation<IOrder, 
     {
         return Task.FromResult<IOrder>(order);
     }
-
-    protected virtual Task<IOrder> OnValidatedAsync(ValidatedOrder order, TState state, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnInvalidAsync(InvalidOrder order, TState state, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
+    
     protected virtual Task<IOrder> OnPricedAsync(PricedOrder order, TState state, CancellationToken cancellationToken)
     {
         return Task.FromResult<IOrder>(order);
@@ -53,10 +41,6 @@ public abstract class OrderOperationWithState<TState> : DomainOperation<IOrder, 
     {
         return Task.FromResult<IOrder>(order);
     }
-
-    protected virtual Task<IOrder> OnPublishedAsync(PublishedOrder order, TState state, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
+    
 }
 
