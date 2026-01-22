@@ -21,6 +21,7 @@ public class PublishInvoiceOperation
 
     public async Task<IInvoice> ExecuteAsync(PersistedInvoice invoice, string paymentStatus, CancellationToken cancellationToken = default)
     {
+        //VO->string(dto)
         var stateChangedEvent = new InvoiceStateChangedEvent
         {
             InvoiceId = invoice.InvoiceId,

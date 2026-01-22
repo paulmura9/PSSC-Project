@@ -9,6 +9,7 @@ public interface IOrderRepository
     Task<Guid> SaveOrderAsync(OrderSaveData order, CancellationToken cancellationToken = default);
     Task<OrderQueryResult?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(Guid orderId, string newStatus, CancellationToken cancellationToken = default);
+    Task UpdateOrderAsync(OrderUpdateData order, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -33,6 +34,24 @@ public record OrderSaveData
     public string? PickupPointId { get; init; }
     public string PaymentMethod { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
+    public IReadOnlyCollection<OrderLineSaveData> Lines { get; init; } = Array.Empty<OrderLineSaveData>();
+}
+
+/// <summary>
+/// DTO for updating order data
+/// </summary>
+public record OrderUpdateData
+{
+    public Guid OrderId { get; init; }
+    public string? Street { get; init; }
+    public string? City { get; init; }
+    public string? PostalCode { get; init; }
+    public string Phone { get; init; } = string.Empty;
+    public string? Email { get; init; }
+    public decimal Subtotal { get; init; }
+    public decimal DiscountAmount { get; init; }
+    public decimal Total { get; init; }
+    public string? VoucherCode { get; init; }
     public IReadOnlyCollection<OrderLineSaveData> Lines { get; init; } = Array.Empty<OrderLineSaveData>();
 }
 
@@ -74,6 +93,7 @@ public record OrderQueryResult
     public string Status { get; init; } = "Sent";
     public DateTime CreatedAt { get; init; }
     
-
+    // For backwards compatibility
+    public decimal TotalPrice => Total;
 }
 

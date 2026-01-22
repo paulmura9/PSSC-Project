@@ -4,6 +4,7 @@ using Ordering.Domain.Operations;
 using Ordering.Domain.Repositories;
 using Ordering.Infrastructure.Persistence;
 using Ordering.Infrastructure.Repository;
+using SharedKernel.Ordering;
 
 namespace Ordering.Infrastructure;
 
@@ -11,6 +12,7 @@ namespace Ordering.Infrastructure;
 /// Extension methods for registering Infrastructure services
 /// This allows Domain to stay clean while Api can reference Infrastructure for DI
 /// </summary>
+/// intregisrez serviciile 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddOrderingInfrastructure(this IServiceCollection services, string connectionString)

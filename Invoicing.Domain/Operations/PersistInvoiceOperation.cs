@@ -19,10 +19,10 @@ public class PersistInvoiceOperation
 
     public async Task<IInvoice> ExecuteAsync(CalculatedInvoice invoice, string paymentStatus, CancellationToken cancellationToken = default)
     {
-        var saveData = MapToSaveData(invoice, paymentStatus);
+        var saveData = MapToSaveData(invoice, paymentStatus); //(VO->String)
         await _repository.SaveInvoiceAsync(saveData, cancellationToken);
 
-        return new PersistedInvoice(invoice, DateTime.UtcNow);
+        return new PersistedInvoice(invoice, DateTime.UtcNow); //VO
     }
 
     private static InvoiceSaveData MapToSaveData(CalculatedInvoice calculated, string paymentStatus)

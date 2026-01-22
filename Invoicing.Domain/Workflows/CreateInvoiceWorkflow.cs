@@ -46,22 +46,16 @@ public class CreateInvoiceWorkflow
 
             // Step 1: Create invoice lines with proportional discount distribution
             //calc fiecare produs cu voucher-ul si tva-ul aplicat
+            //primitve->vo
             var invoiceLines = CreateInvoiceLines(command);
 
             // Step 2: Create initial invoice state
-            IInvoice invoice = CreateInvoiceFromCommand(command, invoiceLines);
+            var createdInvoice = CreateInvoiceFromCommand(command, invoiceLines);
             _logger.LogInformation("Invoice state: Created");
 
-            // Step 3: Calculate VAT using operation
-            // CreatedInvoice -> VatCalculatedInvoice
-            //calculeaza subtotalul la toate produsese si toate tva-urile adunate
-            invoice = new CalculateVatOperation().Transform(invoice);
-            _logger.LogInformation("Invoice state: {State}", invoice.CurrentState);
-
-            // Step 4: Finalize invoice - generate invoice number, due date
-            // VatCalculatedInvoice -> CalculatedInvoice
-            //total cu shipping si data scadenta (premium) si guid
-            invoice = new FinalizeInvoiceOperation().Transform(invoice);
+            // Step 3: Execute pure business logic through operations (SYNC - no I/O)
+            // Created -> VatCalculated -> Calculated
+            IInvoice invoice = ExecuteBusinessLogic(createdInvoice);
             _logger.LogInformation("Invoice state: {State}", invoice.CurrentState);
 
             if (invoice is not CalculatedInvoice calculated)
@@ -69,7 +63,7 @@ public class CreateInvoiceWorkflow
                 return invoice.ToEvent();
             }
 
-            // Step 5: Persist to database (CalculatedInvoice -> PersistedInvoice)
+            // Step 4: Persist to database (CalculatedInvoice -> PersistedInvoice)
             var persisted = await _persistOperation.ExecuteAsync(calculated, command.PaymentStatus, cancellationToken) as PersistedInvoice;
             if (persisted == null)
             {
@@ -77,7 +71,7 @@ public class CreateInvoiceWorkflow
             }
             _logger.LogInformation("Invoice state: Persisted (InvoiceId: {InvoiceId})", persisted.InvoiceId);
 
-            // Step 6: Publish to Service Bus (PersistedInvoice -> PublishedInvoice)
+            // Step 5: Publish to Service Bus (PersistedInvoice -> PublishedInvoice)
             var published = await _publishOperation.ExecuteAsync(persisted, command.PaymentStatus, cancellationToken) as PublishedInvoice;
             if (published == null)
             {
@@ -85,10 +79,10 @@ public class CreateInvoiceWorkflow
             }
             _logger.LogInformation("Invoice state: Published");
 
-            // Step 7: Print invoice
+            // Step 6: Print invoice
             PrintInvoice(command, calculated);
 
-            // Step 8: Return success event
+            // Step 7: Return success event
             return published.ToEvent();
         }
         catch (Exception ex)
@@ -149,6 +143,25 @@ public class CreateInvoiceWorkflow
             command.TotalWithShipping,
             lines.AsReadOnly(),
             DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Executes pure business logic through operations (SYNC - no I/O)
+    /// Created -> VatCalculated -> Calculated
+    /// </summary>
+    private static IInvoice ExecuteBusinessLogic(CreatedInvoice createdInvoice)
+    {
+        // Step 1: Calculate VAT (CreatedInvoice -> VatCalculatedInvoice)
+        // Calculates SubTotal (sum of lines net after discount) and Tax (sum of VAT amounts)
+        //calc subtotalul la toate produsele si tva-ul total (pe linie)
+        IInvoice invoice = new CalculateVatOperation().Transform(createdInvoice);
+
+        // Step 2: Finalize invoice (VatCalculatedInvoice -> CalculatedInvoice)
+        // Generates InvoiceId, InvoiceNumber, calculates TotalAmount, sets DueDate
+        //total cu shipmet si data scadenta + guid
+        invoice = new FinalizeInvoiceOperation().Transform(invoice);
+
+        return invoice;
     }
 
 

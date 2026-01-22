@@ -37,7 +37,7 @@ public class ProductRepository : IProductRepository
         );
     }
 
-    //UPDATA scade stocul
+    //UPDATE scade stocul
     public async Task<bool> ReserveStockAsync(string productName, int quantity, CancellationToken ct = default)
     {
         var product = await _dbContext.Products

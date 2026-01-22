@@ -28,6 +28,7 @@ public class PublishShipmentOperation
     {
         var status = isPremium ? "Dispatched" : "Scheduled";
 
+        //VO->string(dto)
         var stateChangedEvent = new ShipmentStateChangedEvent
         {
             ShipmentId = shipment.ShipmentId,

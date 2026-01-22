@@ -19,6 +19,7 @@ public sealed class CalculateShippingCostOperation : ShipmentOperation
 {
     protected override IShipment OnCreated(CreatedShipment shipment)
     {
+        //calculez shipping cost si total+shipmet cost
         var isPremium = shipment.PremiumSubscription;
         var shippingCost = CalculateShippingCost(shipment.TotalPrice.Value, isPremium);
         var totalWithShipping = shipment.TotalPrice.Value + shippingCost;

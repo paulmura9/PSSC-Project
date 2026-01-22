@@ -34,6 +34,7 @@ public class PersistShipmentOperation
             _ => throw new InvalidOperationException($"Unexpected shipment state: {shipment.GetType().Name}")
         };
 
+        //VO
         var persisted = new PersistedShipment(
             shipmentId: shipmentId,
             orderId: orderId,
@@ -71,7 +72,7 @@ public class PersistShipmentOperation
 
         await _repository.SaveShipmentAsync(saveData, cancellationToken);
 
-        return persisted;
+        return persisted;  //return VO
     }
 }
 

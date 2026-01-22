@@ -23,6 +23,7 @@ public class PublishOrderPlacedOperation
     public async Task<IOrder> ExecuteAsync(PersistedOrder order, CancellationToken cancellationToken = default)
     {
         // Map domain objects to OrderStateChangedEvent with Status="Placed"
+        //VO->DTO
         var stateChangedEvent = new OrderStateChangedEvent
         {
             EventId = Guid.NewGuid(),

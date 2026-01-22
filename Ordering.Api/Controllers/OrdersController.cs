@@ -66,7 +66,7 @@ public class OrdersController : ControllerBase
             validatedLines.Add((line, product));
         }
 
-        // Step 2: Reserve stock for all products (scad stucul)
+        // Step 2: Reserve stock for all products (scad stock)
         foreach (var (line, product) in validatedLines)
         {
             var reserved = await _productRepository.ReserveStockAsync(product.Name, line.Quantity, cancellationToken);

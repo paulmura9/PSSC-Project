@@ -55,6 +55,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
             ? "Authorized"
             : "Pending";
 
+        //primitive
         var command = new CreateInvoiceCommand(
             shipmentEvent.ShipmentId,
             shipmentEvent.OrderId,

@@ -7,6 +7,7 @@ namespace SharedKernel;
 /// Contains OrderStatus = "Placed" when order is successfully placed
 /// Published to "orders" topic, consumed by Shipment
 /// </summary>
+/// in json pt bus
 public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTime.UtcNow)
 {
     /// <summary>

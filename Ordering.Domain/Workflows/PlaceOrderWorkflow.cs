@@ -42,7 +42,7 @@ public class PlaceOrderWorkflow
         {
             _logger.LogInformation("Starting order placement for user {UserId}", command.UnvalidatedOrder.UserId);
 
-            // Step 1: Validate - SYNC (pure validation, no I/O)
+            // Step 1: Validate 
             // UnvalidatedOrder -> ValidatedOrder | InvalidOrder
             IOrder order = _validateOperation.Transform(command.UnvalidatedOrder);
             _logger.LogInformation("State: {OrderType}", order.GetType().Name);
@@ -53,7 +53,7 @@ public class PlaceOrderWorkflow
                 return order.ToEvent();
             }
 
-            // Step 2: Price with optional voucher - ASYNC (DB lookup for voucher)
+            // Step 2: Price with optional voucher - (DB lookup for voucher)
             // ValidatedOrder -> PricedOrder | InvalidOrder
             if (order is ValidatedOrder validatedOrder)
             {
@@ -67,7 +67,7 @@ public class PlaceOrderWorkflow
                 }
             }
 
-            // Step 3: Persist to database - ASYNC (VO -> primitive mapping done internally)
+            // Step 3: Persist to database -  (VO -> primitive mapping done internally)
             // PricedOrder -> PersistedOrder
             if (order is PricedOrder pricedOrder)
             {
@@ -75,7 +75,7 @@ public class PlaceOrderWorkflow
                 _logger.LogInformation("State: {OrderType}", order.GetType().Name);
             }
 
-            // Step 4: Publish to Service Bus - ASYNC 
+            // Step 4: Publish to Service Bus -  
             // PersistedOrder -> PublishedOrder
             if (order is PersistedOrder persistedOrder)
             {
@@ -93,3 +93,11 @@ public class PlaceOrderWorkflow
         }
     }
 }
+
+/// <summary>
+/// Command to place an order with optional voucher code
+/// </summary>
+public record PlaceOrderCommand(
+    UnvalidatedOrder UnvalidatedOrder,
+    string? VoucherCode = null);
+

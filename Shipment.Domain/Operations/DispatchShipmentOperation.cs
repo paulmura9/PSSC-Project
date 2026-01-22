@@ -3,7 +3,7 @@
 namespace Shipment.Domain.Operations;
 
 /// <summary>
-/// Operation that dispatches a shipment - marks as sent out for delivery (SYNC - pure transformation)
+/// Operation that dispatches a shipment - marks as sent out for delivery 
 /// Transforms ScheduledShipment -> DispatchedShipment
 /// </summary>
 public sealed class DispatchShipmentOperation : ShipmentOperation

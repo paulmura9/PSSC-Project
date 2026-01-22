@@ -46,7 +46,7 @@ public class CreateShipmentWorkflow
         {
             _logger.LogInformation("Starting shipment creation for Order: {OrderId}", command.OrderId);
 
-            // Step 1: Create initial shipment state (VO)
+            // Step 1: Create initial shipment state (string->VO)
             var createdShipment = new CreatedShipment(
                 orderId: command.OrderId,
                 userId: command.UserId,
@@ -110,16 +110,22 @@ public class CreateShipmentWorkflow
     /// </summary>
     private static IShipment ExecuteBusinessLogic(CreatedShipment createdShipment)
     {
+        // STEP 1: Calculează costul de livrare
+        // CreatedShipment → ShippingCostCalculatedShipment
         IShipment shipment = new CalculateShippingCostOperation().Transform(createdShipment);
+        
+        //STEP 2: Programează livrarea (generează TrackingNumber, ShipmentId)
+        // ShippingCostCalculatedShipment → ScheduledShipment
         shipment = new ScheduleShipmentOperation().Transform(shipment);
         
-        // Premium customers get dispatched immediately (priority shipping)
+        //STEP 3: Dacă e Premium, expediază imediat
+        // ScheduledShipment → DispatchedShipment (doar pentru Premium)
         if (createdShipment.PremiumSubscription)
         {
             shipment = new DispatchShipmentOperation().Transform(shipment);
         }
         
-        return shipment;
+        return shipment; // ScheduledShipment sau DispatchedShipment
     }
 }
 

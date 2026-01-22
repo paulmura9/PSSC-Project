@@ -3,14 +3,13 @@ using Ordering.Domain.Models;
 using Ordering.Infrastructure.Persistence;
 using SharedKernel.Ordering;
 using static Ordering.Domain.Models.Order;
-using DomainOrderRepository = Ordering.Domain.Repositories.IOrderRepository;
 
 namespace Ordering.Infrastructure.Repository;
 
 /// <summary>
 /// EF Core implementation of IOrderRepository
 /// </summary>
-public class OrderRepository : DomainOrderRepository
+public class OrderRepository : IOrderRepository
 {
     private readonly OrderingDbContext _context;
 
@@ -19,6 +18,7 @@ public class OrderRepository : DomainOrderRepository
         _context = context;
     }
 
+    //INSERT INTO
     public async Task<Guid> SaveOrderAsync(OrderSaveData order, CancellationToken cancellationToken = default)
     {
         var orderEntity = new OrderEntity
@@ -99,51 +99,39 @@ public class OrderRepository : DomainOrderRepository
         }
     }
 
-    public async Task UpdateOrderAsync(
-        Guid orderId,
-        string street,
-        string city,
-        string postalCode,
-        string phone,
-        string? email,
-        decimal subtotal,
-        decimal discountAmount,
-        decimal total,
-        string? voucherCode,
-        IReadOnlyCollection<ValidatedOrderLine> lines,
-        CancellationToken cancellationToken = default)
+    public async Task UpdateOrderAsync(OrderUpdateData order, CancellationToken cancellationToken = default)
     {
         var entity = await _context.Orders
             .Include(o => o.Lines)
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+            .FirstOrDefaultAsync(o => o.Id == order.OrderId, cancellationToken);
 
         if (entity != null)
         {
-            entity.Street = street;
-            entity.City = city;
-            entity.PostalCode = postalCode;
-            entity.Phone = phone;
-            entity.Email = email;
-            entity.Subtotal = subtotal;
-            entity.DiscountAmount = discountAmount;
-            entity.Total = total;
-            entity.VoucherCode = voucherCode;
+            entity.Street = order.Street;
+            entity.City = order.City;
+            entity.PostalCode = order.PostalCode;
+            entity.Phone = order.Phone;
+            entity.Email = order.Email;
+            entity.Subtotal = order.Subtotal;
+            entity.DiscountAmount = order.DiscountAmount;
+            entity.Total = order.Total;
+            entity.VoucherCode = order.VoucherCode;
 
             // Remove old lines and add new ones
             _context.OrderLines.RemoveRange(entity.Lines);
 
-            foreach (var line in lines)
+            foreach (var line in order.Lines)
             {
                 entity.Lines.Add(new OrderLineEntity
                 {
-                    Id = Guid.NewGuid(),
-                    OrderId = orderId,
-                    Name = line.Name.Value,
-                    Description = line.Description.Value,
-                    Category = line.Category.Value,
-                    Quantity = line.Quantity.Value,
-                    UnitPrice = line.UnitPrice.Value,
-                    LineTotal = line.LineTotal.Value
+                    Id = line.OrderLineId,
+                    OrderId = order.OrderId,
+                    Name = line.Name,
+                    Description = line.Description,
+                    Category = line.Category,
+                    Quantity = line.Quantity,
+                    UnitPrice = line.UnitPrice,
+                    LineTotal = line.LineTotal
                 });
             }
 

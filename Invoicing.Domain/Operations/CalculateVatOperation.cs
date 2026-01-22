@@ -18,7 +18,7 @@ public sealed class CalculateVatOperation : InvoiceOperation
 {
     protected override IInvoice OnCreated(CreatedInvoice invoice)
     {
-        // Calculate totals from lines (each line has its own VAT rate based on category)
+        // calculate VAT si subtotal per line
         // LineNetAfterDiscount includes proportional discount
         var subTotal = new Money(invoice.Lines.Sum(l => l.LineNetAfterDiscount.Value));
         var totalVat = new Money(invoice.Lines.Sum(l => l.VatAmount.Value));

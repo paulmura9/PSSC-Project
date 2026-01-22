@@ -15,12 +15,10 @@ public abstract class OrderOperation<TState> : DomainOperation<IOrder, TState, I
     public override IOrder Transform(IOrder order, TState? state) => order switch
     {
         UnvalidatedOrder unvalidated => OnUnvalidated(unvalidated, state),
-        PricedOrder priced => OnPriced(priced, state),
         _ => throw new InvalidOrderStateException($"Unknown order state: {order.GetType().Name}")
     };
 
     protected virtual IOrder OnUnvalidated(UnvalidatedOrder order, TState? state) => order;
-    protected virtual IOrder OnPriced(PricedOrder order, TState? state) => order;
 }
 
 /// <summary>
@@ -32,7 +30,4 @@ public abstract class OrderOperation : OrderOperation<object>
 
     protected sealed override IOrder OnUnvalidated(UnvalidatedOrder order, object? state) => OnUnvalidated(order);
     protected virtual IOrder OnUnvalidated(UnvalidatedOrder order) => order;
-
-    protected sealed override IOrder OnPriced(PricedOrder order, object? state) => OnPriced(order);
-    protected virtual IOrder OnPriced(PricedOrder order) => order;
 }

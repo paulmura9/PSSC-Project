@@ -55,7 +55,7 @@ public class ShipmentRepository : IShipmentRepository
                 LineTotal = l.LineTotal
             }).ToList()
         };
-
+        //pun in db
         await _context.Shipments.AddAsync(entity, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }

@@ -25,6 +25,7 @@ public class OrderEventProcessor : BackgroundService
         _logger = logger;
 
         // Create processor for the orders topic with subscription
+        //ascult pe orders
         _processor = serviceBusClient.CreateProcessor(
             topicName: TopicNames.Orders,
             subscriptionName: SubscriptionNames.OrderProcessor,

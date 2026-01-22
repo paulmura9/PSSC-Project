@@ -1,5 +1,5 @@
 using Ordering.Domain.Models;
-using Ordering.Domain.Repositories;
+using SharedKernel.Ordering;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
@@ -24,7 +24,7 @@ public class PersistOrderOperation
         var createdAt = DateTime.UtcNow;
         
         var saveData = MapToSaveData(order, orderId, createdAt);
-        await _repository.SaveOrderAsync(saveData, cancellationToken);
+        await _repository.SaveOrderAsync(saveData, cancellationToken); //scrie in db
 
         return new PersistedOrder(
             orderId: orderId,
@@ -48,6 +48,7 @@ public class PersistOrderOperation
 
     private static SharedKernel.Ordering.OrderSaveData MapToSaveData(PricedOrder order, Guid orderId, DateTime createdAt)
     {
+        //VO->string
         return new SharedKernel.Ordering.OrderSaveData
         {
             OrderId = orderId,

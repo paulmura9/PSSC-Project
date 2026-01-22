@@ -32,7 +32,7 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
 
     protected override async Task<EventProcessingResult> OnHandleAsync(OrderStateChangedEvent orderEvent, CancellationToken cancellationToken)
     {
-        //orderEvent e deserilizat deja, adica obiect
+        //orderEvent deserilizat , adica obiect
         _logger.LogInformation("Order Event Parsed Successfully:");
         _logger.LogInformation("  - Order ID: {OrderId}", orderEvent.OrderId);
         _logger.LogInformation("  - User ID: {UserId}", orderEvent.UserId);
@@ -51,7 +51,7 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
             .ToList()
             .AsReadOnly();
 
-        //comanda pt workflow
+        //comanda pt workflow, primitive
         var command = new CreateShipmentCommand(
             orderEvent.OrderId,
             orderEvent.UserId,
