@@ -1,7 +1,7 @@
-using Ordering.Domain.Models;
+﻿using Ordering.Domain.Models;
 using static Ordering.Domain.Models.Order;
 
-namespace Ordering.Domain.Operations;
+namespace Ordering.Domain.Repositories;
 
 /// <summary>
 /// Interface for order repository operations
@@ -71,4 +71,3 @@ public record OrderQueryResult
     // For backwards compatibility
     public decimal TotalPrice => Total;
 }
-

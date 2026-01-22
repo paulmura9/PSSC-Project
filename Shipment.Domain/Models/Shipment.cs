@@ -12,9 +12,9 @@ public enum ShipmentState
     Created,                // Shipment created from order event
     ShippingCostCalculated, // Shipping cost calculated
     Scheduled,              // Scheduled for dispatch (tracking number assigned)
-    Dispatched,             // Sent out for delivery
-    Delivered,              // Successfully delivered
-    Persisted               // Saved to database (internal state)
+    Dispatched,             // Sent out for delivery (premium)
+    Persisted,              // Saved to database
+    Published               // Published to Service Bus
 }
 
 /// <summary>
@@ -28,16 +28,16 @@ public static class Shipment
     /// Business rules:
     /// - Created → ShippingCostCalculated (calculate shipping)
     /// - ShippingCostCalculated → Scheduled (assign tracking)
-    /// - Scheduled → Dispatched (sent out)
-    /// - Dispatched → Delivered (successful)
-    /// - Persisted → Scheduled (continue processing)
+    /// - Scheduled → Dispatched (premium only) or Persisted (regular)
+    /// - Dispatched → Persisted
+    /// - Persisted → Published
     /// </summary>
     public static readonly StateTransitionMap<ShipmentState> Transitions = new StateTransitionMap<ShipmentState>()
-        .Allow(ShipmentState.Created, ShipmentState.ShippingCostCalculated, ShipmentState.Persisted)
+        .Allow(ShipmentState.Created, ShipmentState.ShippingCostCalculated)
         .Allow(ShipmentState.ShippingCostCalculated, ShipmentState.Scheduled)
-        .Allow(ShipmentState.Scheduled, ShipmentState.Dispatched)
-        .Allow(ShipmentState.Dispatched, ShipmentState.Delivered)
-        .Allow(ShipmentState.Persisted, ShipmentState.Scheduled);
+        .Allow(ShipmentState.Scheduled, ShipmentState.Dispatched, ShipmentState.Persisted)
+        .Allow(ShipmentState.Dispatched, ShipmentState.Persisted)
+        .Allow(ShipmentState.Persisted, ShipmentState.Published);
 
     /// <summary>
     /// Marker interface for all shipment states
@@ -50,8 +50,8 @@ public static class Shipment
             ShippingCostCalculatedShipment => ShipmentState.ShippingCostCalculated,
             ScheduledShipment => ShipmentState.Scheduled,
             DispatchedShipment => ShipmentState.Dispatched,
-            DeliveredShipment => ShipmentState.Delivered,
             PersistedShipment => ShipmentState.Persisted,
+            PublishedShipment => ShipmentState.Published,
             _ => throw new InvalidOperationException($"Unknown shipment state: {GetType().Name}")
         };
 
@@ -67,12 +67,14 @@ public static class Shipment
         public CreatedShipment(
             Guid orderId,
             Guid userId,
+            bool premiumSubscription,
             Money totalPrice,
             IReadOnlyCollection<ShipmentLine> lines,
             DateTime orderPlacedAt)
         {
             OrderId = orderId;
             UserId = userId;
+            PremiumSubscription = premiumSubscription;
             TotalPrice = totalPrice;
             Lines = lines;
             OrderPlacedAt = orderPlacedAt;
@@ -80,6 +82,7 @@ public static class Shipment
 
         public Guid OrderId { get; }
         public Guid UserId { get; }
+        public bool PremiumSubscription { get; }
         public Money TotalPrice { get; }
         public IReadOnlyCollection<ShipmentLine> Lines { get; }
         public DateTime OrderPlacedAt { get; }
@@ -205,32 +208,6 @@ public static class Shipment
         public DateTime DispatchedAt { get; }
     }
 
-    /// <summary>
-    /// Represents a delivered shipment (successfully delivered)
-    /// </summary>
-    public record DeliveredShipment : IShipment
-    {
-        public DeliveredShipment(
-            Guid shipmentId,
-            Guid orderId,
-            Guid userId,
-            TrackingNumber trackingNumber,
-            DateTime deliveredAt)
-        {
-            ShipmentId = shipmentId;
-            OrderId = orderId;
-            UserId = userId;
-            TrackingNumber = trackingNumber;
-            DeliveredAt = deliveredAt;
-        }
-
-        public Guid ShipmentId { get; }
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public TrackingNumber TrackingNumber { get; }
-        public DateTime DeliveredAt { get; }
-    }
-
 
     /// <summary>
     /// Represents a shipment that has been persisted to the database
@@ -274,25 +251,49 @@ public static class Shipment
     }
 
     /// <summary>
+    /// Represents a shipment that has been published to Service Bus
+    /// </summary>
+    public record PublishedShipment : IShipment
+    {
+        public PublishedShipment(PersistedShipment persisted, DateTime publishedAt)
+        {
+            ShipmentId = persisted.ShipmentId;
+            OrderId = persisted.OrderId;
+            UserId = persisted.UserId;
+            TotalPrice = persisted.TotalPrice;
+            ShippingCost = persisted.ShippingCost;
+            TotalWithShipping = persisted.TotalWithShipping;
+            Lines = persisted.Lines;
+            TrackingNumber = persisted.TrackingNumber;
+            OrderPlacedAt = persisted.OrderPlacedAt;
+            PublishedAt = publishedAt;
+        }
+
+        public Guid ShipmentId { get; }
+        public Guid OrderId { get; }
+        public Guid UserId { get; }
+        public Money TotalPrice { get; }
+        public Money ShippingCost { get; }
+        public Money TotalWithShipping { get; }
+        public IReadOnlyCollection<ShipmentLine> Lines { get; }
+        public TrackingNumber TrackingNumber { get; }
+        public DateTime OrderPlacedAt { get; }
+        public DateTime PublishedAt { get; }
+    }
+
+    /// <summary>
     /// Extension method to convert shipment state to event (Lab-style pattern)
     /// </summary>
     public static IShipmentWorkflowResult ToEvent(this IShipment shipment) => shipment switch
     {
-        CreatedShipment _ => new ShipmentCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected created state" } 
-        },
-        ShippingCostCalculatedShipment _ => new ShipmentCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected shipping cost calculated state" } 
-        },
-        ScheduledShipment _ => new ShipmentCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected scheduled state" } 
-        },
-        DispatchedShipment _ => new ShipmentCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected dispatched state" } 
+        PublishedShipment published => new ShipmentCreatedSuccessEvent
+        {
+            ShipmentId = published.ShipmentId,
+            OrderId = published.OrderId,
+            UserId = published.UserId,
+            TrackingNumber = published.TrackingNumber.Value,
+            TotalPrice = published.TotalWithShipping.Value,
+            CreatedAt = published.PublishedAt
         },
         PersistedShipment persisted => new ShipmentCreatedSuccessEvent
         {
@@ -303,10 +304,9 @@ public static class Shipment
             TotalPrice = persisted.TotalWithShipping.Value,
             CreatedAt = DateTime.UtcNow
         },
-        DeliveredShipment _ => new ShipmentCreatedFailedEvent
+        _ => new ShipmentCreatedFailedEvent
         { 
-            Reasons = new[] { "Unexpected delivered state" } 
-        },
-        _ => throw new NotImplementedException($"Unknown shipment state: {shipment.GetType().Name}")
+            Reasons = new[] { $"Unexpected shipment state: {shipment.GetType().Name}" } 
+        }
     };
 }

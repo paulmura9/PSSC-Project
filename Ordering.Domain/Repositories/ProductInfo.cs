@@ -1,4 +1,4 @@
-namespace Ordering.Domain.Operations;
+﻿namespace Ordering.Domain.Repositories;
 
 /// <summary>
 /// Product information returned from repository
@@ -11,4 +11,3 @@ public record ProductInfo(
     decimal Price,
     int StockQuantity
 );
-

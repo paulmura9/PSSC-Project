@@ -13,10 +13,6 @@ public static class OrderExtensions
     public static IOrderPlacedEvent ToEvent(this Order.IOrder order) =>
         order switch
         {
-            Order.UnvalidatedOrder => new OrderPlaceFailedEvent("Unexpected unvalidated state"),
-            Order.ValidatedOrder => new OrderPlaceFailedEvent("Unexpected validated state"),
-            Order.PricedOrder => new OrderPlaceFailedEvent("Unexpected priced state"),
-            Order.PersistableOrder => new OrderPlaceFailedEvent("Unexpected persistable state"),
             Order.InvalidOrder invalid => new OrderPlaceFailedEvent(invalid.Reasons),
             Order.PersistedOrder persisted => new OrderPlacedEvent(
                 persisted.OrderId,
@@ -48,7 +44,7 @@ public static class OrderExtensions
                 published.Phone.Value,
                 published.Email?.Value,
                 published.PublishedAt),
-            _ => throw new NotImplementedException($"Unknown order state: {order.GetType().Name}")
+            _ => new OrderPlaceFailedEvent($"Unexpected order state: {order.GetType().Name}")
         };
 }
 

@@ -9,7 +9,7 @@ namespace Shipment.Domain.Handlers;
 /// <summary>
 /// Handler for OrderStateChangedEvent - creates shipments from orders
 /// </summary>
-public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEventDto>
+public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEvent>
 {
     private readonly CreateShipmentWorkflow _workflow;
     private readonly IEventBus _eventBus;
@@ -30,9 +30,9 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
         _logger = logger;
     }
 
-    protected override async Task<EventProcessingResult> OnHandleAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
+    protected override async Task<EventProcessingResult> OnHandleAsync(OrderStateChangedEvent orderEvent, CancellationToken cancellationToken)
     {
-        //orderEvent e deserilizat adica obiect
+        //orderEvent e deserilizat deja, adica obiect
         _logger.LogInformation("Order Event Parsed Successfully:");
         _logger.LogInformation("  - Order ID: {OrderId}", orderEvent.OrderId);
         _logger.LogInformation("  - User ID: {UserId}", orderEvent.UserId);
@@ -59,6 +59,7 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
             orderEvent.TotalPrice,
             orderEvent.Subtotal,
             orderEvent.DiscountAmount,
+            orderEvent.PaymentMethod,
             shipmentLines,
             orderEvent.OccurredAt);
 
@@ -78,7 +79,7 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
 
     private async Task<EventProcessingResult> HandleSuccessAsync(
         ShipmentCreatedSuccessEvent success,
-        OrderStateChangedEventDto orderEvent, 
+        OrderStateChangedEvent orderEvent, 
         CancellationToken cancellationToken)
     {
         _logger.LogInformation("========================================");
@@ -88,37 +89,8 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
         _logger.LogInformation("  - Order ID: {OrderId}", success.OrderId);
         _logger.LogInformation("========================================");
 
-        // Publish ShipmentStateChangedEvent to Service Bus for Invoicing
-        var status = orderEvent.PremiumSubscription ? "Priority" : "Scheduled";
-        var shipmentEvent = new ShipmentStateChangedEvent
-        {
-            ShipmentId = success.ShipmentId,
-            OrderId = success.OrderId,
-            UserId = success.UserId,
-            ShipmentState = status,
-            TrackingNumber = success.TrackingNumber,
-            PremiumSubscription = orderEvent.PremiumSubscription,
-            Subtotal = orderEvent.Subtotal,
-            DiscountAmount = orderEvent.DiscountAmount,
-            TotalAfterDiscount = orderEvent.TotalPrice,
-            ShippingCost = success.TotalPrice - orderEvent.TotalPrice,
-            TotalWithShipping = success.TotalPrice,
-            PaymentMethod = orderEvent.PaymentMethod,
-            Lines = orderEvent.Lines.Select(l => new LineItemDto(
-                l.Name,
-                l.Description,
-                l.Category,
-                l.Quantity,
-                l.UnitPrice,
-                l.LineTotal
-            )).ToList(),
-            OccurredAt = DateTime.UtcNow
-        };
-
-        //public pe service bus
-        await _eventBus.PublishAsync(TopicNames.Shipments, shipmentEvent, cancellationToken);
-        _logger.LogInformation("ShipmentStateChangedEvent published to topic '{Topic}'", TopicNames.Shipments);
-
+        // Publish is now done in workflow via PublishShipmentOperation
+        
         // Save event to CSV history
         await _eventHistory.SaveEventAsync(
             orderEvent,
@@ -134,7 +106,7 @@ public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEv
 
     private async Task<EventProcessingResult> HandleFailureAsync(
         ShipmentCreatedFailedEvent failed,
-        OrderStateChangedEventDto orderEvent, 
+        OrderStateChangedEvent orderEvent, 
         CancellationToken cancellationToken)
     {
         var errorMessage = string.Join(", ", failed.Reasons);

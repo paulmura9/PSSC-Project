@@ -42,7 +42,7 @@ public class AzureServiceBusEventBus : IEventBus, IAsyncDisposable
         _logger.LogInformation("Azure Service Bus client initialized with direct connection string");
     }
 
-    //publica evenimet
+    //publica eveniment
     public async Task PublishAsync<TEvent>(string topicName, TEvent @event, CancellationToken cancellationToken = default)
         where TEvent : IntegrationEvent
     {

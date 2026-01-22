@@ -4,16 +4,6 @@ using static Shipment.Domain.Models.Shipment;
 namespace Shipment.Domain.Operations;
 
 /// <summary>
-/// Wrapper class for premium status (to satisfy class constraint)
-/// </summary>
-public sealed class PremiumStatus
-{
-    public bool IsPremium { get; }
-    public PremiumStatus(bool isPremium) => IsPremium = isPremium;
-    public static PremiumStatus Create(bool isPremium) => new(isPremium);
-}
-
-/// <summary>
 /// Operation that calculates shipping cost for a shipment (SYNC - pure transformation)
 /// Transforms CreatedShipment -> ShippingCostCalculatedShipment
 /// 
@@ -25,11 +15,11 @@ public sealed class PremiumStatus
 ///   - 6001-10000 RON: 75 RON
 ///   - >= 10001 RON: 100 RON
 /// </summary>
-public sealed class CalculateShippingCostOperation : ShipmentOperationWithState<PremiumStatus>
+public sealed class CalculateShippingCostOperation : ShipmentOperation
 {
-    protected override IShipment OnCreated(CreatedShipment shipment, PremiumStatus? premiumStatus)
+    protected override IShipment OnCreated(CreatedShipment shipment)
     {
-        var isPremium = premiumStatus?.IsPremium ?? false;
+        var isPremium = shipment.PremiumSubscription;
         var shippingCost = CalculateShippingCost(shipment.TotalPrice.Value, isPremium);
         var totalWithShipping = shipment.TotalPrice.Value + shippingCost;
 

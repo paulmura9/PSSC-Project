@@ -1,54 +1,43 @@
+using SharedKernel;
+using Shipment.Domain.Exceptions;
 using static Shipment.Domain.Models.Shipment;
 
 namespace Shipment.Domain.Operations;
 
 /// <summary>
-/// Base class for shipment operations following Lab-style DDD pattern (SYNC - pure transformations)
-/// Async is only used for DB persistence and Service Bus publishing in workflow
+/// Base class for shipment operations with state dependency (SYNC - pure transformations)
+/// Extends DomainOperation from SharedKernel
 /// </summary>
-public abstract class ShipmentOperation : ShipmentOperationWithState<object>
+/// <typeparam name="TState">The state/dependency type for the operation</typeparam>
+public abstract class ShipmentOperation<TState> : DomainOperation<IShipment, TState, IShipment>
+    where TState : class
 {
-    public IShipment Transform(IShipment shipment)
+    public override IShipment Transform(IShipment shipment, TState? state) => shipment switch
     {
-        return Transform(shipment, null!);
-    }
-
-    protected virtual IShipment OnCreated(CreatedShipment shipment) => shipment;
-    protected virtual IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment) => shipment;
-    protected virtual IShipment OnScheduled(ScheduledShipment shipment) => shipment;
-    protected virtual IShipment OnDispatched(DispatchedShipment shipment) => shipment;
-    protected virtual IShipment OnPersisted(PersistedShipment shipment) => shipment;
-
-    protected override IShipment OnCreated(CreatedShipment shipment, object? state) => OnCreated(shipment);
-    protected override IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment, object? state) => OnShippingCostCalculated(shipment);
-    protected override IShipment OnScheduled(ScheduledShipment shipment, object? state) => OnScheduled(shipment);
-    protected override IShipment OnDispatched(DispatchedShipment shipment, object? state) => OnDispatched(shipment);
-    protected override IShipment OnPersisted(PersistedShipment shipment, object? state) => OnPersisted(shipment);
-}
-
-/// <summary>
-/// Base class for shipment operations that need external state/dependencies (SYNC - pure transformations)
-/// </summary>
-public abstract class ShipmentOperationWithState<TState> where TState : class
-{
-    public IShipment Transform(IShipment shipment, TState? state)
-    {
-        return shipment switch
-        {
-            CreatedShipment created => OnCreated(created, state),
-            ShippingCostCalculatedShipment calculated => OnShippingCostCalculated(calculated, state),
-            ScheduledShipment scheduled => OnScheduled(scheduled, state),
-            DispatchedShipment dispatched => OnDispatched(dispatched, state),
-            PersistedShipment persisted => OnPersisted(persisted, state),
-            _ => shipment
-        };
-    }
+        CreatedShipment created => OnCreated(created, state),
+        ShippingCostCalculatedShipment calculated => OnShippingCostCalculated(calculated, state),
+        ScheduledShipment scheduled => OnScheduled(scheduled, state),
+        _ => throw new InvalidShipmentStateException(shipment.GetType().Name)
+    };
 
     protected virtual IShipment OnCreated(CreatedShipment shipment, TState? state) => shipment;
     protected virtual IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment, TState? state) => shipment;
     protected virtual IShipment OnScheduled(ScheduledShipment shipment, TState? state) => shipment;
-    protected virtual IShipment OnDispatched(DispatchedShipment shipment, TState? state) => shipment;
-    protected virtual IShipment OnPersisted(PersistedShipment shipment, TState? state) => shipment;
 }
 
+/// <summary>
+/// Base class for shipment operations without state dependency (SYNC - pure transformations)
+/// </summary>
+public abstract class ShipmentOperation : ShipmentOperation<object>
+{
+    public IShipment Transform(IShipment shipment) => Transform(shipment, null);
 
+    protected sealed override IShipment OnCreated(CreatedShipment shipment, object? state) => OnCreated(shipment);
+    protected virtual IShipment OnCreated(CreatedShipment shipment) => shipment;
+
+    protected sealed override IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment, object? state) => OnShippingCostCalculated(shipment);
+    protected virtual IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment) => shipment;
+
+    protected sealed override IShipment OnScheduled(ScheduledShipment shipment, object? state) => OnScheduled(shipment);
+    protected virtual IShipment OnScheduled(ScheduledShipment shipment) => shipment;
+}

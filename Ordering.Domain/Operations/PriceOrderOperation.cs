@@ -29,7 +29,7 @@ public class PriceOrderOperation
         string? voucherCode,
         CancellationToken cancellationToken = default)
     {
-        // Calculate subtotal from lines
+        // Calculate subtotal from lines (suma la toate produsele)
         var subtotal = order.Lines.Sum(line => line.LineTotal.Value);
         _logger.LogInformation("Calculated subtotal: {Subtotal}", subtotal);
 

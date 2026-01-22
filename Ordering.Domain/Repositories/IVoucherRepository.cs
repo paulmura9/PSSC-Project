@@ -1,6 +1,7 @@
 using Ordering.Domain.Models;
 
-namespace Ordering.Domain.Operations;
+namespace Ordering.Domain.Repositories;
+
 
 /// <summary>
 /// Repository interface for voucher operations

@@ -62,6 +62,7 @@ public class ShipmentEventProcessor : BackgroundService
 
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
     {
+        //extrag mesajul/json (CONSUM)
         string messageBody = args.Message.Body.ToString();
         
         _logger.LogInformation("========================================");

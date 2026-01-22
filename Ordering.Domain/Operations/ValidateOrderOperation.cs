@@ -6,10 +6,11 @@ namespace Ordering.Domain.Operations;
 /// <summary>
 /// Operation that validates an unvalidated order
 /// Validates pickup method, payment method, and address requirements
+/// SYNC - pure transformation (no I/O)
 /// </summary>
 public class ValidateOrderOperation : OrderOperation
 {
-    protected override Task<IOrder> OnUnvalidatedAsync(UnvalidatedOrder order, CancellationToken cancellationToken)
+    protected override IOrder OnUnvalidated(UnvalidatedOrder order)
     {
         var errors = new List<string>();
 
@@ -102,7 +103,6 @@ public class ValidateOrderOperation : OrderOperation
         {
             try
             {
-                // Validate phone format using VO
                 PhoneNumber.Create(order.Phone);
             }
             catch (ArgumentException ex)
@@ -178,8 +178,7 @@ public class ValidateOrderOperation : OrderOperation
         // Invalid order
         if (errors.Count > 0)
         {
-            var invalidOrder = new InvalidOrder(order.Lines, errors);
-            return Task.FromResult<IOrder>(invalidOrder);
+            return new InvalidOrder(order.Lines, errors);
         }
 
         // Create validated order with calculated line totals and Value Objects
@@ -196,7 +195,7 @@ public class ValidateOrderOperation : OrderOperation
         var email = !string.IsNullOrWhiteSpace(order.Email) ? EmailAddress.Create(order.Email) : null;
         var deliveryNotes = !string.IsNullOrWhiteSpace(order.DeliveryNotes) ? DeliveryNotes.Create(order.DeliveryNotes) : null;
 
-        var validatedOrder = new ValidatedOrder(
+        return new ValidatedOrder(
             validatedLines,
             customerId,
             street,
@@ -209,8 +208,5 @@ public class ValidateOrderOperation : OrderOperation
             pickupMethod!,
             pickupPointId,
             paymentMethod!);
-
-        return Task.FromResult<IOrder>(validatedOrder);
     }
 }
-

@@ -10,7 +10,6 @@ public sealed record Money
 
     public Money(decimal value)
     {
-        // Data is pre-validated from Ordering
         Value = Math.Round(value, 2);
     }
 

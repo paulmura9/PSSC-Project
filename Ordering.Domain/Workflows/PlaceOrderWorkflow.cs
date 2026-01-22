@@ -17,8 +17,6 @@ public class PlaceOrderWorkflow
     private readonly MakePersistableOrderOperation _makePersistableOperation;
     private readonly PersistOrderOperation _persistOperation;
     private readonly PublishOrderPlacedOperation _publishOperation;
-    private readonly IOrderRepository _orderRepository;
-    private readonly IOrderEventPublisher _eventPublisher;
     private readonly ILogger<PlaceOrderWorkflow> _logger;
 
     public PlaceOrderWorkflow(
@@ -27,8 +25,6 @@ public class PlaceOrderWorkflow
         MakePersistableOrderOperation makePersistableOperation,
         PersistOrderOperation persistOperation,
         PublishOrderPlacedOperation publishOperation,
-        IOrderRepository orderRepository,
-        IOrderEventPublisher eventPublisher,
         ILogger<PlaceOrderWorkflow> logger)
     {
         _validateOperation = validateOperation;
@@ -36,13 +32,12 @@ public class PlaceOrderWorkflow
         _makePersistableOperation = makePersistableOperation;
         _persistOperation = persistOperation;
         _publishOperation = publishOperation;
-        _orderRepository = orderRepository;
-        _eventPublisher = eventPublisher;
         _logger = logger;
     }
 
     /// <summary>
     /// Executes the place order workflow
+    /// Pipeline: UnvalidatedOrder -> ValidatedOrder -> PricedOrder -> PersistableOrder -> PersistedOrder -> PublishedOrder
     /// </summary>
     public async Task<IOrderPlacedEvent> ExecuteAsync(PlaceOrderCommand command, CancellationToken cancellationToken = default)
     {
@@ -50,9 +45,10 @@ public class PlaceOrderWorkflow
         {
             _logger.LogInformation("Starting order placement for user {UserId}", command.UnvalidatedOrder.UserId);
 
-            // Step 1: Validate (UnvalidatedOrder -> ValidatedOrder or InvalidOrder)
-            IOrder order = await _validateOperation.TransformAsync(command.UnvalidatedOrder, cancellationToken);
-            _logger.LogInformation("Validation result: {OrderType}", order.GetType().Name);
+            // Step 1: Validate - SYNC (pure validation, no I/O)
+            // UnvalidatedOrder -> ValidatedOrder | InvalidOrder
+            IOrder order = _validateOperation.Transform(command.UnvalidatedOrder);
+            _logger.LogInformation("State: {OrderType}", order.GetType().Name);
 
             if (order is InvalidOrder)
             {
@@ -60,11 +56,12 @@ public class PlaceOrderWorkflow
                 return order.ToEvent();
             }
 
-            // Step 2: Price with optional voucher (ValidatedOrder -> PricedOrder or InvalidOrder)
+            // Step 2: Price with optional voucher - ASYNC (DB lookup for voucher)
+            // ValidatedOrder -> PricedOrder | InvalidOrder
             if (order is ValidatedOrder validatedOrder)
             {
                 order = await _priceOperation.ExecuteAsync(validatedOrder, command.VoucherCode, cancellationToken);
-                _logger.LogInformation("Pricing result: {OrderType}", order.GetType().Name);
+                _logger.LogInformation("State: {OrderType}", order.GetType().Name);
 
                 if (order is InvalidOrder invalidOrder)
                 {
@@ -73,19 +70,31 @@ public class PlaceOrderWorkflow
                 }
             }
 
-            // Step 3: Make Persistable (PricedOrder -> PersistableOrder)
-            order = await _makePersistableOperation.TransformAsync(order, cancellationToken);
-            _logger.LogInformation("MakePersistable result: {OrderType}", order.GetType().Name);
+            // Step 3: Make Persistable - SYNC (VO -> string conversion for DB)
+            // PricedOrder -> PersistableOrder
+            if (order is PricedOrder pricedOrder)
+            {
+                order = _makePersistableOperation.Transform(pricedOrder);
+                _logger.LogInformation("State: {OrderType}", order.GetType().Name);
+            }
 
-            // Step 4: Persist (PersistableOrder -> PersistedOrder)
-            order = await _persistOperation.TransformAsync(order, _orderRepository, cancellationToken);
-            _logger.LogInformation("Persist result: {OrderType}", order.GetType().Name);
+            // Step 4: Persist to database - ASYNC 
+            // PersistableOrder -> PersistedOrder
+            if (order is PersistableOrder persistableOrder)
+            {
+                order = await _persistOperation.ExecuteAsync(persistableOrder, cancellationToken);
+                _logger.LogInformation("State: {OrderType}", order.GetType().Name);
+            }
 
-            // Step 5: Publish (PersistedOrder -> PublishedOrder)
-            order = await _publishOperation.TransformAsync(order, _eventPublisher, cancellationToken);
-            _logger.LogInformation("Publish result: {OrderType}", order.GetType().Name);
+            // Step 5: Publish to Service Bus - ASYNC 
+            // PersistedOrder -> PublishedOrder
+            if (order is PersistedOrder persistedOrder)
+            {
+                order = await _publishOperation.ExecuteAsync(persistedOrder, cancellationToken);
+                _logger.LogInformation("State: {OrderType}", order.GetType().Name);
+            }
 
-            // Return the appropriate event based on final state
+            // Final state: PublishedOrder -> OrderPlacedEvent
             return order.ToEvent();
         }
         catch (Exception ex)
@@ -95,4 +104,3 @@ public class PlaceOrderWorkflow
         }
     }
 }
-

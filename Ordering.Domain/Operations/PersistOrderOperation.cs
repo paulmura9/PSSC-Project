@@ -1,4 +1,5 @@
 using Ordering.Domain.Models;
+using Ordering.Domain.Repositories;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
@@ -6,12 +7,20 @@ namespace Ordering.Domain.Operations;
 /// <summary>
 /// Operation that persists a PersistableOrder to the database
 /// PersistableOrder -> PersistedOrder
+/// ASYNC - requires I/O (database)
 /// </summary>
-public class PersistOrderOperation : OrderOperationWithState<IOrderRepository>
+public class PersistOrderOperation
 {
-    protected override async Task<IOrder> OnPersistableAsync(PersistableOrder order, IOrderRepository repository, CancellationToken cancellationToken)
+    private readonly IOrderRepository _repository;
+
+    public PersistOrderOperation(IOrderRepository repository)
     {
-        var orderId = await repository.SaveOrderAsync(order, cancellationToken);
+        _repository = repository;
+    }
+
+    public async Task<IOrder> ExecuteAsync(PersistableOrder order, CancellationToken cancellationToken = default)
+    {
+        var orderId = await _repository.SaveOrderAsync(order, cancellationToken);
 
         // Convert PersistableOrderLines back to ValidatedOrderLines for PersistedOrder
         var validatedLines = order.Lines
@@ -24,7 +33,7 @@ public class PersistOrderOperation : OrderOperationWithState<IOrderRepository>
             .ToList()
             .AsReadOnly();
 
-        var persistedOrder = new PersistedOrder(
+        return new PersistedOrder(
             orderId: orderId,
             lines: validatedLines,
             userId: CustomerId.Create(order.UserId),
@@ -42,8 +51,5 @@ public class PersistOrderOperation : OrderOperationWithState<IOrderRepository>
             pickupPointId: order.PickupPointId != null ? new PickupPointId(order.PickupPointId) : null,
             paymentMethod: new PaymentMethod(order.PaymentMethod),
             createdAt: DateTime.UtcNow);
-
-        return persistedOrder;
     }
 }
-

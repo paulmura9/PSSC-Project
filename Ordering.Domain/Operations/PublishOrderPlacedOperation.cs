@@ -1,30 +1,24 @@
 using SharedKernel;
-using Ordering.Domain.Events;
 using Ordering.Domain.Models;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
 
 /// <summary>
-/// Interface for publishing order events to Service Bus
-/// Uses single OrderStateChangedEvent with Status field
-/// </summary>
-public interface IOrderEventPublisher
-{
-    /// <summary>
-    /// Publishes OrderStateChangedEvent to Service Bus
-    /// Status can be: Placed, Cancelled, Modified, Returned
-    /// </summary>
-    Task PublishOrderStateChangedAsync(OrderStateChangedEvent eventDto, CancellationToken cancellationToken);
-}
-
-/// <summary>
 /// Publishes a PersistedOrder to the event bus and returns PublishedOrder
 /// PersistedOrder -> PublishedOrder
+/// ASYNC - requires I/O (Service Bus)
 /// </summary>
-public class PublishOrderPlacedOperation : OrderOperationWithState<IOrderEventPublisher>
+public class PublishOrderPlacedOperation
 {
-    protected override async Task<IOrder> OnPersistedAsync(PersistedOrder order, IOrderEventPublisher publisher, CancellationToken cancellationToken)
+    private readonly IEventBus _eventBus;
+
+    public PublishOrderPlacedOperation(IEventBus eventBus)
+    {
+        _eventBus = eventBus;
+    }
+
+    public async Task<IOrder> ExecuteAsync(PersistedOrder order, CancellationToken cancellationToken = default)
     {
         // Map domain objects to OrderStateChangedEvent with Status="Placed"
         var stateChangedEvent = new OrderStateChangedEvent
@@ -59,7 +53,7 @@ public class PublishOrderPlacedOperation : OrderOperationWithState<IOrderEventPu
         };
 
         // Publish to Service Bus
-        await publisher.PublishOrderStateChangedAsync(stateChangedEvent, cancellationToken);
+        await _eventBus.PublishAsync(TopicNames.Orders, stateChangedEvent, cancellationToken);
 
         // Return PublishedOrder state
         return new PublishedOrder(
@@ -82,4 +76,3 @@ public class PublishOrderPlacedOperation : OrderOperationWithState<IOrderEventPu
             publishedAt: DateTime.UtcNow);
     }
 }
-

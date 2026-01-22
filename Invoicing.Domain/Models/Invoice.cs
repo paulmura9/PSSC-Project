@@ -9,11 +9,11 @@ namespace Invoicing.Models;
 /// </summary>
 public enum InvoiceState
 {
-    Created,       // Initial state from shipment event (data pre-validated by Ordering)
-    Invalid,       // Validation failed (for consistency with DDD pattern)
-    Calculated,    // Subtotal + VAT/taxes + total + invoiceNumber generated
-    Persisted,     // Saved to DB (has InvoiceId)
-    Published      // InvoiceStateChanged sent to Service Bus
+    Created,        // Initial state from shipment event (data pre-validated by Ordering)
+    VatCalculated,  // VAT calculated per line
+    Calculated,     // Subtotal + VAT/taxes + total + invoiceNumber + dueDate generated
+    Persisted,      // Saved to DB (has InvoiceId)
+    Published       // InvoiceStateChanged sent to Service Bus
 }
 
 /// <summary>
@@ -25,7 +25,8 @@ public static class Invoice
     /// Defines allowed state transitions for Invoice
     /// </summary>
     public static readonly StateTransitionMap<InvoiceState> Transitions = new StateTransitionMap<InvoiceState>()
-        .Allow(InvoiceState.Created, InvoiceState.Calculated)
+        .Allow(InvoiceState.Created, InvoiceState.VatCalculated)
+        .Allow(InvoiceState.VatCalculated, InvoiceState.Calculated)
         .Allow(InvoiceState.Calculated, InvoiceState.Persisted)
         .Allow(InvoiceState.Persisted, InvoiceState.Published);
 
@@ -34,7 +35,7 @@ public static class Invoice
         InvoiceState IStateMachine<InvoiceState>.CurrentState => this switch
         {
             CreatedInvoice => InvoiceState.Created,
-            InvalidInvoice => InvoiceState.Invalid,
+            VatCalculatedInvoice => InvoiceState.VatCalculated,
             CalculatedInvoice => InvoiceState.Calculated,
             PersistedInvoice => InvoiceState.Persisted,
             PublishedInvoice => InvoiceState.Published,
@@ -116,6 +117,51 @@ public static class Invoice
     }
 
     /// <summary>
+    /// Represents an invoice with VAT calculated per line
+    /// Intermediate state before final totals calculation
+    /// </summary>
+    public record VatCalculatedInvoice : IInvoice
+    {
+        public Guid ShipmentId { get; }
+        public Guid OrderId { get; }
+        public Guid UserId { get; }
+        public TrackingNumber TrackingNumber { get; }
+        public bool PremiumSubscription { get; }
+        public Money SubTotal { get; }
+        public Money TotalVat { get; }
+        public Money ShippingCost { get; }
+        public IReadOnlyCollection<InvoiceLine> Lines { get; }
+        public DateTime ShipmentCreatedAt { get; }
+        public DateTime VatCalculatedAt { get; }
+
+        public VatCalculatedInvoice(
+            Guid shipmentId,
+            Guid orderId,
+            Guid userId,
+            TrackingNumber trackingNumber,
+            bool premiumSubscription,
+            Money subTotal,
+            Money totalVat,
+            Money shippingCost,
+            IReadOnlyCollection<InvoiceLine> lines,
+            DateTime shipmentCreatedAt,
+            DateTime vatCalculatedAt)
+        {
+            ShipmentId = shipmentId;
+            OrderId = orderId;
+            UserId = userId;
+            TrackingNumber = trackingNumber;
+            PremiumSubscription = premiumSubscription;
+            SubTotal = subTotal;
+            TotalVat = totalVat;
+            ShippingCost = shippingCost;
+            Lines = lines;
+            ShipmentCreatedAt = shipmentCreatedAt;
+            VatCalculatedAt = vatCalculatedAt;
+        }
+    }
+
+    /// <summary>
     /// Represents a calculated invoice with subtotal, tax, and invoice number
     /// Values are stored in RON. EUR is derived for presentation.
     /// </summary>
@@ -171,34 +217,6 @@ public static class Invoice
             DisplayCurrency = displayCurrency ?? Currency.Default();
             TotalInRon = totalAmount.Value;
             TotalInEur = CurrencyConverter.ConvertRonToEur(totalAmount.Value);
-        }
-
-        /// <summary>
-        /// Create from CreatedInvoice with VAT calculations per line
-        /// VAT rates: Essential = 11%, Electronics/Other = 21%
-        /// </summary>
-        public static CalculatedInvoice FromCreated(CreatedInvoice created, Currency? displayCurrency = null)
-        {
-            // Calculate totals from lines (each line has its own VAT rate based on category)
-            // Use LineNetAfterDiscount which includes proportional discount
-            var subTotal = new Money(created.Lines.Sum(l => (decimal)l.LineNetAfterDiscount.Value));
-            var totalVat = new Money(created.Lines.Sum(l => (decimal)l.VatAmount.Value));
-            var totalAmount = subTotal.Add(totalVat);
-
-            return new CalculatedInvoice(
-                Guid.NewGuid(),
-                InvoiceNumber.Generate(),
-                created.ShipmentId,
-                created.OrderId,
-                created.UserId,
-                created.TrackingNumber,
-                subTotal,
-                totalVat,
-                totalAmount,
-                created.Lines,
-                DateTime.UtcNow,
-                DateTime.UtcNow.AddDays(30),
-                displayCurrency ?? Currency.Default());
         }
     }
 
@@ -289,46 +307,12 @@ public static class Invoice
     }
 
 
-    /// <summary>
-    /// Represents an invalid invoice (validation failed)
-    /// Note: Usually invoice data comes pre-validated from Ordering,
-    /// but this state exists for consistency with the DDD pattern
-    /// </summary>
-    public record InvalidInvoice : IInvoice
-    {
-        public Guid OrderId { get; }
-        public IEnumerable<string> Reasons { get; }
-
-        public InvalidInvoice(Guid orderId, IEnumerable<string> reasons)
-        {
-            OrderId = orderId;
-            Reasons = reasons;
-        }
-
-        public InvalidInvoice(Guid orderId, string reason)
-            : this(orderId, new[] { reason })
-        {
-        }
-    }
 
     /// <summary>
     /// Extension method to convert invoice state to event (Lab-style pattern)
     /// </summary>
     public static Events.IInvoiceWorkflowResult ToEvent(this IInvoice invoice) => invoice switch
     {
-        CreatedInvoice _ => new Events.InvoiceCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected created state" } 
-        },
-        InvalidInvoice invalid => new Events.InvoiceCreatedFailedEvent
-        { 
-            OrderId = invalid.OrderId,
-            Reasons = invalid.Reasons 
-        },
-        CalculatedInvoice _ => new Events.InvoiceCreatedFailedEvent
-        { 
-            Reasons = new[] { "Unexpected calculated state" } 
-        },
         PersistedInvoice persisted => new Events.InvoiceCreatedSuccessEvent
         {
             InvoiceId = persisted.InvoiceId,
@@ -359,7 +343,10 @@ public static class Invoice
             TotalInRon = published.TotalInRon,
             TotalInEur = published.TotalInEur
         },
-        _ => throw new NotImplementedException($"Unknown invoice state: {invoice.GetType().Name}")
+        _ => new Events.InvoiceCreatedFailedEvent
+        { 
+            Reasons = new[] { $"Unexpected invoice state: {invoice.GetType().Name}" } 
+        }
     };
 }
 

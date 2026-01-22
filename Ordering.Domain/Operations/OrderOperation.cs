@@ -1,71 +1,38 @@
+using Ordering.Domain.Exceptions;
+using SharedKernel;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;
 
 /// <summary>
-/// Order operation without state dependency
+/// Base class for order operations with state dependency (SYNC - pure transformations)
+/// Extends DomainOperation from SharedKernel
 /// </summary>
-public abstract class OrderOperation : OrderOperationWithState<object>
+/// <typeparam name="TState">The state/dependency type for the operation</typeparam>
+public abstract class OrderOperation<TState> : DomainOperation<IOrder, TState, IOrder>
+    where TState : class
 {
-    public Task<IOrder> TransformAsync(IOrder order, CancellationToken cancellationToken)
+    public override IOrder Transform(IOrder order, TState? state) => order switch
     {
-        return TransformAsync(order, null!, cancellationToken);
-    }
+        UnvalidatedOrder unvalidated => OnUnvalidated(unvalidated, state),
+        PricedOrder priced => OnPriced(priced, state),
+        _ => throw new InvalidOrderStateException($"Unknown order state: {order.GetType().Name}")
+    };
 
-    protected virtual Task<IOrder> OnUnvalidatedAsync(UnvalidatedOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnValidatedAsync(ValidatedOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnInvalidAsync(InvalidOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnPricedAsync(PricedOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnPersistableAsync(PersistableOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnPersistedAsync(PersistedOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-
-    protected virtual Task<IOrder> OnPublishedAsync(PublishedOrder order, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<IOrder>(order);
-    }
-    
-//=================================
-    protected override Task<IOrder> OnUnvalidatedAsync(UnvalidatedOrder order, object state, CancellationToken cancellationToken)
-    {
-        return OnUnvalidatedAsync(order, cancellationToken);
-    }
-    
-    protected override Task<IOrder> OnPricedAsync(PricedOrder order, object state, CancellationToken cancellationToken)
-    {
-        return OnPricedAsync(order, cancellationToken);
-    }
-
-    protected override Task<IOrder> OnPersistableAsync(PersistableOrder order, object state, CancellationToken cancellationToken)
-    {
-        return OnPersistableAsync(order, cancellationToken);
-    }
-
-    protected override Task<IOrder> OnPersistedAsync(PersistedOrder order, object state, CancellationToken cancellationToken)
-    {
-        return OnPersistedAsync(order, cancellationToken);
-    }
+    protected virtual IOrder OnUnvalidated(UnvalidatedOrder order, TState? state) => order;
+    protected virtual IOrder OnPriced(PricedOrder order, TState? state) => order;
 }
 
+/// <summary>
+/// Base class for order operations without state dependency (SYNC - pure transformations)
+/// </summary>
+public abstract class OrderOperation : OrderOperation<object>
+{
+    public IOrder Transform(IOrder order) => Transform(order, null);
+
+    protected sealed override IOrder OnUnvalidated(UnvalidatedOrder order, object? state) => OnUnvalidated(order);
+    protected virtual IOrder OnUnvalidated(UnvalidatedOrder order) => order;
+
+    protected sealed override IOrder OnPriced(PricedOrder order, object? state) => OnPriced(order);
+    protected virtual IOrder OnPriced(PricedOrder order) => order;
+}

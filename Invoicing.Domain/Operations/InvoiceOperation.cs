@@ -1,53 +1,40 @@
+using SharedKernel;
+using Invoicing.Exceptions;
 using static Invoicing.Models.Invoice;
 
 namespace Invoicing.Operations;
 
 /// <summary>
-/// Base class for invoice operations following Lab-style DDD pattern (SYNC - pure transformations)
-/// Async is only used for DB persistence and Service Bus publishing in workflow
+/// Base class for invoice operations with state dependency (SYNC - pure transformations)
+/// Extends DomainOperation from SharedKernel
+/// Only CreatedInvoice is used in Transform - CalculateVatOperation.OnCreated()
 /// </summary>
-public abstract class InvoiceOperation : InvoiceOperationWithState<object>
+/// <typeparam name="TState">The state/dependency type for the operation</typeparam>
+public abstract class InvoiceOperation<TState> : DomainOperation<IInvoice, TState, IInvoice>
+    where TState : class
 {
-    public IInvoice Transform(IInvoice invoice)
+    public override IInvoice Transform(IInvoice invoice, TState? state) => invoice switch
     {
-        return Transform(invoice, null!);
-    }
+        CreatedInvoice created => OnCreated(created, state),
+        VatCalculatedInvoice vatCalculated => OnVatCalculated(vatCalculated, state),
+        _ => throw new InvalidInvoiceStateException(invoice.GetType().Name)
+    };
 
-    protected virtual IInvoice OnCreated(CreatedInvoice invoice) => invoice;
-    protected virtual IInvoice OnCalculated(CalculatedInvoice invoice) => invoice;
-    protected virtual IInvoice OnPersisted(PersistedInvoice invoice) => invoice;
-    protected virtual IInvoice OnPublished(PublishedInvoice invoice) => invoice;
-    protected virtual IInvoice OnInvalid(InvalidInvoice invoice) => invoice;
-
-    protected override IInvoice OnCreated(CreatedInvoice invoice, object? state) => OnCreated(invoice);
-    protected override IInvoice OnCalculated(CalculatedInvoice invoice, object? state) => OnCalculated(invoice);
-    protected override IInvoice OnPersisted(PersistedInvoice invoice, object? state) => OnPersisted(invoice);
-    protected override IInvoice OnPublished(PublishedInvoice invoice, object? state) => OnPublished(invoice);
-    protected override IInvoice OnInvalid(InvalidInvoice invoice, object? state) => OnInvalid(invoice);
+    protected virtual IInvoice OnCreated(CreatedInvoice invoice, TState? state) => invoice;
+    protected virtual IInvoice OnVatCalculated(VatCalculatedInvoice invoice, TState? state) => invoice;
 }
 
 /// <summary>
-/// Base class for invoice operations that need external state/dependencies (SYNC - pure transformations)
+/// Base class for invoice operations without state dependency (SYNC - pure transformations)
 /// </summary>
-public abstract class InvoiceOperationWithState<TState> where TState : class
+public abstract class InvoiceOperation : InvoiceOperation<object>
 {
-    public IInvoice Transform(IInvoice invoice, TState? state)
-    {
-        return invoice switch
-        {
-            CreatedInvoice created => OnCreated(created, state),
-            CalculatedInvoice calculated => OnCalculated(calculated, state),
-            PersistedInvoice persisted => OnPersisted(persisted, state),
-            PublishedInvoice published => OnPublished(published, state),
-            InvalidInvoice invalid => OnInvalid(invalid, state),
-            _ => invoice
-        };
-    }
+    public IInvoice Transform(IInvoice invoice) => Transform(invoice, null);
 
-    protected virtual IInvoice OnCreated(CreatedInvoice invoice, TState? state) => invoice;
-    protected virtual IInvoice OnCalculated(CalculatedInvoice invoice, TState? state) => invoice;
-    protected virtual IInvoice OnPersisted(PersistedInvoice invoice, TState? state) => invoice;
-    protected virtual IInvoice OnPublished(PublishedInvoice invoice, TState? state) => invoice;
-    protected virtual IInvoice OnInvalid(InvalidInvoice invoice, TState? state) => invoice;
+    protected sealed override IInvoice OnCreated(CreatedInvoice invoice, object? state) => OnCreated(invoice);
+    protected virtual IInvoice OnCreated(CreatedInvoice invoice) => invoice;
+
+    protected sealed override IInvoice OnVatCalculated(VatCalculatedInvoice invoice, object? state) => OnVatCalculated(invoice);
+    protected virtual IInvoice OnVatCalculated(VatCalculatedInvoice invoice) => invoice;
+    
 }
-

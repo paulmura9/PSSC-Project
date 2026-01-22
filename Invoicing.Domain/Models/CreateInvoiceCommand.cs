@@ -20,6 +20,11 @@ public record CreateInvoiceCommand
     public IReadOnlyCollection<InvoiceLineInput> Lines { get; }
     public DateTime ShipmentCreatedAt { get; }
     public Currency? DisplayCurrency { get; }
+    
+    /// <summary>
+    /// Payment status: "Authorized" for CardOnline, "Pending" otherwise
+    /// </summary>
+    public string PaymentStatus { get; }
 
     public CreateInvoiceCommand(
         Guid shipmentId,
@@ -34,6 +39,7 @@ public record CreateInvoiceCommand
         decimal totalWithShipping,
         IReadOnlyCollection<InvoiceLineInput> lines,
         DateTime shipmentCreatedAt,
+        string paymentStatus = "Pending",
         Currency? displayCurrency = null)
     {
         ShipmentId = shipmentId;
@@ -48,6 +54,7 @@ public record CreateInvoiceCommand
         TotalWithShipping = totalWithShipping;
         Lines = lines;
         ShipmentCreatedAt = shipmentCreatedAt;
+        PaymentStatus = paymentStatus;
         DisplayCurrency = displayCurrency;
     }
 }
@@ -61,6 +68,3 @@ public record InvoiceLineInput(
     string Category,
     int Quantity,
     decimal UnitPrice);
-
-
-

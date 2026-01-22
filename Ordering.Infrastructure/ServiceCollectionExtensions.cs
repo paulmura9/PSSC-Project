@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Ordering.Domain.Operations;
+using Ordering.Domain.Repositories;
 using Ordering.Infrastructure.Persistence;
 using Ordering.Infrastructure.Repository;
 

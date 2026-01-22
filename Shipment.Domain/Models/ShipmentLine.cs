@@ -6,13 +6,13 @@ namespace Shipment.Domain.Models;
 public sealed record ShipmentLine
 {
     public ProductName Name { get; }
-    public string Description { get; }
-    public string Category { get; }
+    public ProductDescription Description { get; }
+    public ProductCategory Category { get; }
     public Quantity Quantity { get; }
     public Money UnitPrice { get; }
     public Money LineTotal { get; }
 
-    public ShipmentLine(ProductName name, string description, string category, Quantity quantity, Money unitPrice, Money lineTotal)
+    public ShipmentLine(ProductName name, ProductDescription description, ProductCategory category, Quantity quantity, Money unitPrice, Money lineTotal)
     {
         Name = name;
         Description = description;

@@ -7,7 +7,7 @@ namespace Shipment.Infrastructure.Repository;
 /// <summary>
 /// Repository implementation for Shipment persistence operations
 /// Shipment reacts to events from Ordering
-/// Maps EF entities to domain models (like lab pattern)
+/// Maps EF entities to domain models 
 /// </summary>
 public class ShipmentRepository : IShipmentRepository
 {
@@ -31,7 +31,7 @@ public class ShipmentRepository : IShipmentRepository
             return;
         }
 
-        // Map domain DTO to EF entity (like lab pattern)
+        // Map domain DTO to EF entity
         var entity = new ShipmentEntity
         {
             ShipmentId = shipment.ShipmentId,
@@ -70,7 +70,7 @@ public class ShipmentRepository : IShipmentRepository
         if (entity == null)
             return null;
 
-        // Map entity to domain model (like lab pattern)
+        // Map entity to domain model 
         return MapToQueryResult(entity);
     }
 
@@ -84,7 +84,7 @@ public class ShipmentRepository : IShipmentRepository
         if (entity == null)
             return null;
 
-        // Map entity to domain model (like lab pattern)
+        // Map entity to domain model 
         return MapToQueryResult(entity);
     }
 
@@ -112,7 +112,7 @@ public class ShipmentRepository : IShipmentRepository
     }
 
     /// <summary>
-    /// Maps EF entity to domain query result (lab pattern)
+    /// Maps EF entity to domain query result 
     /// </summary>
     private static ShipmentQueryResult MapToQueryResult(ShipmentEntity entity)
     {

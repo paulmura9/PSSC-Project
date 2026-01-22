@@ -93,7 +93,7 @@ public sealed record InvoiceLine
         decimal totalDiscount)
     {
         var parsedCategory = ProductCategoryExtensions.ParseCategory(category);
-        var vatRate = VatRate.ForCategory(parsedCategory);
+        var vatRate = VatRate.ForCategory(parsedCategory); //calculez tva
         
         var lineNetInitial = quantity * unitPrice;
         var lineDiscount = Math.Round(totalDiscount * lineShare, 2);

@@ -4,6 +4,7 @@ using SharedKernel;
 using SharedKernel.ServiceBus;
 using Shipment.Domain;
 using Shipment.Domain.Handlers;
+using Shipment.Domain.Operations;
 using Shipment.Domain.Workflows;
 using Shipment.Infrastructure;
 
@@ -35,6 +36,10 @@ else
     // Inregistrează IEventBus pt PUBLICARE
     builder.Services.AddSingleton<IEventBus>(sp => 
         new AzureServiceBusEventBus(shipmentsConnectionString!, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AzureServiceBusEventBus>>()));
+    
+    // Register operations
+    builder.Services.AddScoped<PersistShipmentOperation>();
+    builder.Services.AddScoped<PublishShipmentOperation>();
     
     // Register workflow and handler (AbstractEventHandler pattern)
     builder.Services.AddScoped<CreateShipmentWorkflow>();

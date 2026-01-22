@@ -1,4 +1,6 @@
-namespace Ordering.Domain.Operations;
+using Ordering.Domain.Models;
+
+namespace Ordering.Domain.Repositories;
 
 /// <summary>
 /// Interface for product repository operations

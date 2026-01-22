@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Ordering.Domain.Models;
+using Ordering.Domain.Repositories;
 using static Ordering.Domain.Models.Order;
 
 namespace Ordering.Domain.Operations;

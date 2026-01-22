@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿using Azure.Messaging.ServiceBus;
+﻿﻿﻿﻿﻿﻿using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedKernel;
@@ -35,6 +35,10 @@ else
     // Register IEventBus for publishing to invoices topic (like Shipment)
     builder.Services.AddSingleton<IEventBus>(sp => 
         new AzureServiceBusEventBus(invoicesConnectionString!, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AzureServiceBusEventBus>>()));
+    
+    // Register operations
+    builder.Services.AddScoped<PersistInvoiceOperation>();
+    builder.Services.AddScoped<PublishInvoiceOperation>();
     
     // Register workflow and handler (AbstractEventHandler pattern - like Shipment)
     builder.Services.AddScoped<CreateInvoiceWorkflow>();

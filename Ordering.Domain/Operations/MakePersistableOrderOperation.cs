@@ -6,10 +6,11 @@ namespace Ordering.Domain.Operations;
 /// <summary>
 /// Transforms a PricedOrder into a PersistableOrder (mapped to DB model)
 /// PricedOrder -> PersistableOrder
+/// SYNC - pure transformation (VO -> primitives, no I/O)
 /// </summary>
 public class MakePersistableOrderOperation : OrderOperation
 {
-    protected override Task<IOrder> OnPricedAsync(PricedOrder order, CancellationToken cancellationToken)
+    protected override IOrder OnPriced(PricedOrder order)
     {
         // Map ValidatedOrderLines to PersistableOrderLines (vo->primitive)
         var persistableLines = order.Lines
@@ -23,7 +24,7 @@ public class MakePersistableOrderOperation : OrderOperation
             .ToList()
             .AsReadOnly();
 
-        var persistableOrder = new PersistableOrder(
+        return new PersistableOrder(
             lines: persistableLines,
             userId: order.UserId.Value,
             street: order.Street?.Value,
@@ -40,8 +41,5 @@ public class MakePersistableOrderOperation : OrderOperation
             pickupMethod: order.PickupMethod.Value,
             pickupPointId: order.PickupPointId?.Value,
             paymentMethod: order.PaymentMethod.Value);
-
-        return Task.FromResult<IOrder>(persistableOrder);
     }
 }
-

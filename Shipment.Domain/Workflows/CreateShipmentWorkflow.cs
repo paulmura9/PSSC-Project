@@ -2,14 +2,13 @@ using Microsoft.Extensions.Logging;
 using Shipment.Domain.Events;
 using Shipment.Domain.Models;
 using Shipment.Domain.Operations;
-using SharedKernel.Shipment;
 using static Shipment.Domain.Models.Shipment;
 
 namespace Shipment.Domain.Workflows;
 
 /// <summary>
 /// Workflow for creating shipments from order events
-/// State transitions: Created -> ShippingCostCalculated -> Scheduled -> Persisted
+/// State transitions: Created -> ShippingCostCalculated -> Scheduled -> Persisted -> Published
 /// 
 /// Shipping cost rules (in RON):
 /// - Premium customers: FREE (0 RON)
@@ -22,12 +21,17 @@ namespace Shipment.Domain.Workflows;
 public class CreateShipmentWorkflow
 {
     private readonly ILogger<CreateShipmentWorkflow> _logger;
-    private readonly IShipmentRepository? _repository;
+    private readonly PersistShipmentOperation _persistOperation;
+    private readonly PublishShipmentOperation _publishOperation;
 
-    public CreateShipmentWorkflow(ILogger<CreateShipmentWorkflow> logger, IShipmentRepository? repository = null)
+    public CreateShipmentWorkflow(
+        ILogger<CreateShipmentWorkflow> logger, 
+        PersistShipmentOperation persistOperation,
+        PublishShipmentOperation publishOperation)
     {
         _logger = logger;
-        _repository = repository; //pt salvare in db
+        _persistOperation = persistOperation;
+        _publishOperation = publishOperation;
     }
 
     /// <summary>
@@ -46,11 +50,12 @@ public class CreateShipmentWorkflow
             var createdShipment = new CreatedShipment(
                 orderId: command.OrderId,
                 userId: command.UserId,
+                premiumSubscription: command.IsPremium,
                 totalPrice: new Money(command.OrderTotal),
                 lines: command.Lines.Select(l => new ShipmentLine(
                     new ProductName(l.Name),
-                    l.Description,
-                    l.Category,
+                    new ProductDescription(l.Description),
+                    new ProductCategory(l.Category),
                     new Quantity(l.Quantity),
                     new Money(l.UnitPrice),
                     new Money(l.LineTotal)
@@ -59,57 +64,34 @@ public class CreateShipmentWorkflow
 
             _logger.LogInformation("Created shipment state for Order: {OrderId}", command.OrderId);
 
-            // Step 2: Execute pure business logic through operations (SYNC - no I/O)
-            IShipment shipment = ExecuteBusinessLogic(createdShipment, command.IsPremium);
+            // Step 2: Execute pure business logic through operations 
+            IShipment shipment = ExecuteBusinessLogic(createdShipment);
 
-            // Step 3: Save to database if we have a scheduled shipment
-            if (shipment is ScheduledShipment scheduled && _repository != null)
+            // Step 3: Persist to database (Scheduled/Dispatched -> PersistedShipment)
+            var persisted = await _persistOperation.ExecuteAsync(shipment, cancellationToken) as PersistedShipment;
+            if (persisted == null)
             {
-                var persisted = new PersistedShipment(
-                    shipmentId: scheduled.ShipmentId,
-                    orderId: scheduled.OrderId,
-                    userId: scheduled.UserId,
-                    totalPrice: scheduled.TotalPrice,
-                    shippingCost: scheduled.ShippingCost,
-                    totalWithShipping: scheduled.TotalWithShipping,
-                    lines: scheduled.Lines,
-                    trackingNumber: scheduled.TrackingNumber,
-                    orderPlacedAt: scheduled.OrderPlacedAt,
-                    persistedAt: DateTime.UtcNow);
-
-                // Map to save data DTO  (VO->string)
-                var saveData = new ShipmentSaveData
-                {
-                    ShipmentId = persisted.ShipmentId,
-                    OrderId = persisted.OrderId,
-                    UserId = persisted.UserId,
-                    TrackingNumber = persisted.TrackingNumber.Value,
-                    TotalPrice = persisted.TotalPrice.Value,
-                    ShippingCost = persisted.ShippingCost.Value,
-                    TotalWithShipping = persisted.TotalWithShipping.Value,
-                    Status = "Scheduled",
-                    Lines = persisted.Lines.Select(l => new ShipmentLineSaveData
-                    {
-                        ShipmentLineId = Guid.NewGuid(),
-                        Name = l.Name.Value,
-                        Description = l.Description,
-                        Category = l.Category,
-                        Quantity = l.Quantity.Value,
-                        UnitPrice = l.UnitPrice.Value,
-                        LineTotal = l.LineTotal.Value
-                    }).ToList()
-                };
-                
-                //salvez in db
-                await _repository.SaveShipmentAsync(saveData, cancellationToken);
-                _logger.LogInformation("Shipment persisted: {ShipmentId}", persisted.ShipmentId);
-
-                // Return event using ToEvent() (Lab pattern)
-                return persisted.ToEvent();
+                return new ShipmentCreatedFailedEvent { Reasons = new[] { "Failed to persist shipment" } };
             }
+            _logger.LogInformation("Shipment persisted: {ShipmentId}", persisted.ShipmentId);
 
-            // Return event using ToEvent() for non-persisted states
-            return shipment.ToEvent();
+            // Step 4: Publish to Service Bus (PersistedShipment -> PublishedShipment)
+            var published = await _publishOperation.ExecuteAsync(
+                persisted, 
+                command.IsPremium, 
+                command.PaymentMethod,
+                command.Subtotal,
+                command.DiscountAmount,
+                cancellationToken) as PublishedShipment;
+            
+            if (published == null)
+            {
+                return new ShipmentCreatedFailedEvent { Reasons = new[] { "Failed to publish shipment" } };
+            }
+            _logger.LogInformation("Shipment published: {ShipmentId}", published.ShipmentId);
+
+            // Return event using ToEvent() (Lab pattern)
+            return published.ToEvent();
         }
         catch (Exception ex)
         {
@@ -124,12 +106,19 @@ public class CreateShipmentWorkflow
 
     /// <summary>
     /// Executes pure business logic through operations (SYNC - no I/O)
-    /// Created -> ShippingCostCalculated -> Scheduled
+    /// Created -> ShippingCostCalculated -> Scheduled -> (Dispatched for Premium)
     /// </summary>
-    private static IShipment ExecuteBusinessLogic(CreatedShipment createdShipment, bool isPremium)
+    private static IShipment ExecuteBusinessLogic(CreatedShipment createdShipment)
     {
-        IShipment shipment = new CalculateShippingCostOperation().Transform(createdShipment, PremiumStatus.Create(isPremium));
-        shipment = new ScheduleShipmentOperation().Transform(shipment); //genereaza tracking no
+        IShipment shipment = new CalculateShippingCostOperation().Transform(createdShipment);
+        shipment = new ScheduleShipmentOperation().Transform(shipment);
+        
+        // Premium customers get dispatched immediately (priority shipping)
+        if (createdShipment.PremiumSubscription)
+        {
+            shipment = new DispatchShipmentOperation().Transform(shipment);
+        }
+        
         return shipment;
     }
 }
@@ -144,6 +133,7 @@ public record CreateShipmentCommand(
     decimal OrderTotal,
     decimal Subtotal,
     decimal DiscountAmount,
+    string PaymentMethod,
     IReadOnlyCollection<ShipmentLineInput> Lines,
     DateTime OrderPlacedAt);
 

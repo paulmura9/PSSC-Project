@@ -1,13 +1,11 @@
-using System.Text;
-using SharedKernel;
-using Ordering.Domain.Models;
+﻿using System.Text;
 
-namespace Ordering.Domain.Events;
+namespace SharedKernel;
 
 /// <summary>
-/// Single event emitted by Ordering context
+/// Event emitted by Ordering context when order state changes
 /// Contains OrderStatus = "Placed" when order is successfully placed
-/// This is the ONLY event published to "orders" topic
+/// Published to "orders" topic, consumed by Shipment
 /// </summary>
 public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTime.UtcNow)
 {
@@ -52,7 +50,6 @@ public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTi
     // Payment fields
     public string PaymentMethod { get; init; } = "CashOnDelivery";
 
-
     public override string ToString()
     {
         var sb = new StringBuilder();
@@ -85,5 +82,4 @@ public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTi
         return sb.ToString();
     }
 }
-
 

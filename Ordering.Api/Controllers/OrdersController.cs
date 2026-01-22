@@ -3,6 +3,7 @@ using Ordering.Api.DTOs;
 using Ordering.Domain.Events;
 using Ordering.Domain.Models;
 using Ordering.Domain.Operations;
+using Ordering.Domain.Repositories;
 using Ordering.Domain.Workflows;
 using static Ordering.Domain.Models.Order;
 

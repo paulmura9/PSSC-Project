@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Ordering.Domain.Models;
 using Ordering.Domain.Operations;
+using Ordering.Domain.Repositories;
 using Ordering.Infrastructure.Persistence;
 using static Ordering.Domain.Models.Order;
 

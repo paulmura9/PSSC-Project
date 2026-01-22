@@ -6,7 +6,7 @@ namespace Invoicing.Infrastructure.Repository;
 
 /// <summary>
 /// Repository implementation for Invoice persistence operations
-/// Maps EF entities to domain models (like lab pattern)
+/// Maps EF entities to domain models 
 /// </summary>
 public class InvoiceRepository : IInvoiceRepository
 {
@@ -30,7 +30,7 @@ public class InvoiceRepository : IInvoiceRepository
             return;
         }
 
-        // Map domain DTO to EF entity (like lab pattern)
+        // Map domain DTO to EF entity 
         var entity = new InvoiceEntity
         {
             InvoiceId = invoice.InvoiceId,
@@ -61,6 +61,7 @@ public class InvoiceRepository : IInvoiceRepository
             }).ToList()
         };
 
+        //salvez in db
         await _context.Invoices.AddAsync(entity, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -75,7 +76,7 @@ public class InvoiceRepository : IInvoiceRepository
         if (entity == null)
             return null;
 
-        // Map entity to domain model (like lab pattern)
+        // Map entity to domain model 
         return MapToQueryResult(entity);
     }
 
@@ -89,7 +90,7 @@ public class InvoiceRepository : IInvoiceRepository
         if (entity == null)
             return null;
 
-        // Map entity to domain model (like lab pattern)
+        // Map entity to domain model 
         return MapToQueryResult(entity);
     }
 

@@ -1,9 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Ordering.Domain.Operations;
 using Ordering.Domain.Workflows;
 using Ordering.Infrastructure;
-using Ordering.Infrastructure.Persistence;
-using Ordering.Infrastructure.Repository;
 using SharedKernel;
 using SharedKernel.ServiceBus;
 
@@ -44,8 +41,6 @@ Console.WriteLine($"Event history CSV will be saved to:");
 Console.WriteLine($"  {csvPath}");
 Console.WriteLine($"========================================");
 
-// Register event publisher
-builder.Services.AddScoped<IOrderEventPublisher, ServiceBusOrderEventPublisher>();
 
 
 // Register operations

@@ -9,7 +9,6 @@ public sealed record InvoiceNumber
 
     public InvoiceNumber(string value)
     {
-        // No validation - data comes pre-validated from Ordering
         Value = value ?? throw new ArgumentNullException(nameof(value));
     }
 
