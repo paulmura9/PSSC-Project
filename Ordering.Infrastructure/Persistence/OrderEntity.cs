@@ -22,6 +22,7 @@ public class OrderEntity
     public decimal DiscountAmount { get; set; }
     public decimal Total { get; set; }
     public string? VoucherCode { get; set; }
+    public bool PremiumSubscription { get; set; }
     
     // Pickup/Delivery method
     public string PickupMethod { get; set; } = "HomeDelivery";

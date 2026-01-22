@@ -8,13 +8,12 @@ namespace Ordering.Domain.Workflows;
 
 /// <summary>
 /// Workflow that orchestrates the place order process
-/// Pipeline: Unvalidated -> Validate -> Price -> MakePersistable -> Persist -> Publish
+/// Pipeline: Unvalidated -> Validate -> Price -> Persist -> Publish
 /// </summary>
 public class PlaceOrderWorkflow
 {
     private readonly ValidateOrderOperation _validateOperation;
     private readonly PriceOrderOperation _priceOperation;
-    private readonly MakePersistableOrderOperation _makePersistableOperation;
     private readonly PersistOrderOperation _persistOperation;
     private readonly PublishOrderPlacedOperation _publishOperation;
     private readonly ILogger<PlaceOrderWorkflow> _logger;
@@ -22,14 +21,12 @@ public class PlaceOrderWorkflow
     public PlaceOrderWorkflow(
         ValidateOrderOperation validateOperation,
         PriceOrderOperation priceOperation,
-        MakePersistableOrderOperation makePersistableOperation,
         PersistOrderOperation persistOperation,
         PublishOrderPlacedOperation publishOperation,
         ILogger<PlaceOrderWorkflow> logger)
     {
         _validateOperation = validateOperation;
         _priceOperation = priceOperation;
-        _makePersistableOperation = makePersistableOperation;
         _persistOperation = persistOperation;
         _publishOperation = publishOperation;
         _logger = logger;
@@ -37,7 +34,7 @@ public class PlaceOrderWorkflow
 
     /// <summary>
     /// Executes the place order workflow
-    /// Pipeline: UnvalidatedOrder -> ValidatedOrder -> PricedOrder -> PersistableOrder -> PersistedOrder -> PublishedOrder
+    /// Pipeline: UnvalidatedOrder -> ValidatedOrder -> PricedOrder -> PersistedOrder -> PublishedOrder
     /// </summary>
     public async Task<IOrderPlacedEvent> ExecuteAsync(PlaceOrderCommand command, CancellationToken cancellationToken = default)
     {
@@ -70,23 +67,15 @@ public class PlaceOrderWorkflow
                 }
             }
 
-            // Step 3: Make Persistable - SYNC (VO -> string conversion for DB)
-            // PricedOrder -> PersistableOrder
+            // Step 3: Persist to database - ASYNC (VO -> primitive mapping done internally)
+            // PricedOrder -> PersistedOrder
             if (order is PricedOrder pricedOrder)
             {
-                order = _makePersistableOperation.Transform(pricedOrder);
+                order = await _persistOperation.ExecuteAsync(pricedOrder, cancellationToken);
                 _logger.LogInformation("State: {OrderType}", order.GetType().Name);
             }
 
-            // Step 4: Persist to database - ASYNC 
-            // PersistableOrder -> PersistedOrder
-            if (order is PersistableOrder persistableOrder)
-            {
-                order = await _persistOperation.ExecuteAsync(persistableOrder, cancellationToken);
-                _logger.LogInformation("State: {OrderType}", order.GetType().Name);
-            }
-
-            // Step 5: Publish to Service Bus - ASYNC 
+            // Step 4: Publish to Service Bus - ASYNC 
             // PersistedOrder -> PublishedOrder
             if (order is PersistedOrder persistedOrder)
             {

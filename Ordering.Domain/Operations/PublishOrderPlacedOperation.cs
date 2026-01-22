@@ -12,10 +12,12 @@ namespace Ordering.Domain.Operations;
 public class PublishOrderPlacedOperation
 {
     private readonly IEventBus _eventBus;
+    private readonly IEventHistoryService _eventHistory;
 
-    public PublishOrderPlacedOperation(IEventBus eventBus)
+    public PublishOrderPlacedOperation(IEventBus eventBus, IEventHistoryService eventHistory)
     {
         _eventBus = eventBus;
+        _eventHistory = eventHistory;
     }
 
     public async Task<IOrder> ExecuteAsync(PersistedOrder order, CancellationToken cancellationToken = default)
@@ -54,6 +56,15 @@ public class PublishOrderPlacedOperation
 
         // Publish to Service Bus
         await _eventBus.PublishAsync(TopicNames.Orders, stateChangedEvent, cancellationToken);
+
+        // Save event to CSV history
+        await _eventHistory.SaveEventAsync(
+            stateChangedEvent,
+            eventType: "OrderStateChanged:Placed",
+            source: "Ordering.Api",
+            orderId: order.OrderId.ToString(),
+            status: "Published"
+        );
 
         // Return PublishedOrder state
         return new PublishedOrder(

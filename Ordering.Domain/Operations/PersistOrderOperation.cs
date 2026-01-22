@@ -5,9 +5,9 @@ using static Ordering.Domain.Models.Order;
 namespace Ordering.Domain.Operations;
 
 /// <summary>
-/// Operation that persists a PersistableOrder to the database
-/// PersistableOrder -> PersistedOrder
-/// ASYNC - requires I/O (database)
+/// Persists a PricedOrder to the database and returns PersistedOrder
+/// PricedOrder -> PersistedOrder
+/// ASYNC - requires I/O (Database)
 /// </summary>
 public class PersistOrderOperation
 {
@@ -18,38 +18,65 @@ public class PersistOrderOperation
         _repository = repository;
     }
 
-    public async Task<IOrder> ExecuteAsync(PersistableOrder order, CancellationToken cancellationToken = default)
+    public async Task<IOrder> ExecuteAsync(PricedOrder order, CancellationToken cancellationToken = default)
     {
-        var orderId = await _repository.SaveOrderAsync(order, cancellationToken);
-
-        // Convert PersistableOrderLines back to ValidatedOrderLines for PersistedOrder
-        var validatedLines = order.Lines
-            .Select(line => ValidatedOrderLine.Create(
-                line.Name,
-                line.Description,
-                line.Category,
-                line.Quantity,
-                line.UnitPrice))
-            .ToList()
-            .AsReadOnly();
+        var orderId = Guid.NewGuid();
+        var createdAt = DateTime.UtcNow;
+        
+        var saveData = MapToSaveData(order, orderId, createdAt);
+        await _repository.SaveOrderAsync(saveData, cancellationToken);
 
         return new PersistedOrder(
             orderId: orderId,
-            lines: validatedLines,
-            userId: CustomerId.Create(order.UserId),
-            street: !string.IsNullOrWhiteSpace(order.Street) ? Street.Create(order.Street) : null,
-            city: !string.IsNullOrWhiteSpace(order.City) ? City.Create(order.City) : null,
-            postalCode: !string.IsNullOrWhiteSpace(order.PostalCode) ? PostalCode.Create(order.PostalCode) : null,
-            phone: PhoneNumber.Create(order.Phone),
-            email: !string.IsNullOrWhiteSpace(order.Email) ? EmailAddress.Create(order.Email) : null,
+            lines: order.Lines,
+            userId: order.UserId,
+            street: order.Street,
+            city: order.City,
+            postalCode: order.PostalCode,
+            phone: order.Phone,
+            email: order.Email,
             subtotal: order.Subtotal,
             discountAmount: order.DiscountAmount,
             total: order.Total,
-            voucherCode: !string.IsNullOrWhiteSpace(order.VoucherCode) ? VoucherCode.Create(order.VoucherCode) : null,
+            voucherCode: order.VoucherCode,
             premiumSubscription: order.PremiumSubscription,
-            pickupMethod: new PickupMethod(order.PickupMethod),
-            pickupPointId: order.PickupPointId != null ? new PickupPointId(order.PickupPointId) : null,
-            paymentMethod: new PaymentMethod(order.PaymentMethod),
-            createdAt: DateTime.UtcNow);
+            pickupMethod: order.PickupMethod,
+            pickupPointId: order.PickupPointId,
+            paymentMethod: order.PaymentMethod,
+            createdAt: createdAt);
+    }
+
+    private static SharedKernel.Ordering.OrderSaveData MapToSaveData(PricedOrder order, Guid orderId, DateTime createdAt)
+    {
+        return new SharedKernel.Ordering.OrderSaveData
+        {
+            OrderId = orderId,
+            UserId = order.UserId.Value,
+            Street = order.Street?.Value,
+            City = order.City?.Value,
+            PostalCode = order.PostalCode?.Value,
+            Phone = order.Phone.Value,
+            Email = order.Email?.Value,
+            DeliveryNotes = order.DeliveryNotes?.Value,
+            Subtotal = order.Subtotal,
+            DiscountAmount = order.DiscountAmount,
+            Total = order.Total,
+            VoucherCode = order.VoucherCode?.Value,
+            PremiumSubscription = order.PremiumSubscription,
+            PickupMethod = order.PickupMethod.Value,
+            PickupPointId = order.PickupPointId?.Value,
+            PaymentMethod = order.PaymentMethod.Value,
+            CreatedAt = createdAt,
+            Lines = order.Lines.Select(line => new SharedKernel.Ordering.OrderLineSaveData
+            {
+                OrderLineId = Guid.NewGuid(),
+                Name = line.Name.Value,
+                Description = line.Description.Value,
+                Category = line.Category.Value,
+                Quantity = line.Quantity.Value,
+                UnitPrice = line.UnitPrice.Value,
+                LineTotal = line.LineTotal.Value
+            }).ToList().AsReadOnly()
+        };
     }
 }

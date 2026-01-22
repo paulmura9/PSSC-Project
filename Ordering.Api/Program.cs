@@ -47,7 +47,6 @@ Console.WriteLine($"========================================");
 builder.Services.AddScoped<ValidateOrderOperation>();
 builder.Services.AddScoped<ApplyVoucherOperation>();
 builder.Services.AddScoped<PriceOrderOperation>();
-builder.Services.AddScoped<MakePersistableOrderOperation>();
 builder.Services.AddScoped<PersistOrderOperation>();
 builder.Services.AddScoped<PublishOrderPlacedOperation>();
 

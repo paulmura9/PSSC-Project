@@ -1,16 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Ordering.Domain.Models;
-using Ordering.Domain.Operations;
-using Ordering.Domain.Repositories;
 using Ordering.Infrastructure.Persistence;
+using SharedKernel.Ordering;
 using static Ordering.Domain.Models.Order;
+using DomainOrderRepository = Ordering.Domain.Repositories.IOrderRepository;
 
 namespace Ordering.Infrastructure.Repository;
 
 /// <summary>
 /// EF Core implementation of IOrderRepository
 /// </summary>
-public class OrderRepository : IOrderRepository
+public class OrderRepository : DomainOrderRepository
 {
     private readonly OrderingDbContext _context;
 
@@ -19,14 +19,11 @@ public class OrderRepository : IOrderRepository
         _context = context;
     }
 
-    public async Task<Guid> SaveOrderAsync(PersistableOrder order, CancellationToken cancellationToken = default)
+    public async Task<Guid> SaveOrderAsync(OrderSaveData order, CancellationToken cancellationToken = default)
     {
-        var orderId = Guid.NewGuid();
-        var createdAt = DateTime.UtcNow;
-
         var orderEntity = new OrderEntity
         {
-            Id = orderId,
+            Id = order.OrderId,
             UserId = order.UserId,
             Street = order.Street,
             City = order.City,
@@ -38,14 +35,15 @@ public class OrderRepository : IOrderRepository
             DiscountAmount = order.DiscountAmount,
             Total = order.Total,
             VoucherCode = order.VoucherCode,
+            PremiumSubscription = order.PremiumSubscription,
             PickupMethod = order.PickupMethod,
             PickupPointId = order.PickupPointId,
             PaymentMethod = order.PaymentMethod,
-            CreatedAt = createdAt,
+            CreatedAt = order.CreatedAt,
             Lines = order.Lines.Select(line => new OrderLineEntity
             {
-                Id = Guid.NewGuid(),
-                OrderId = orderId,
+                Id = line.OrderLineId,
+                OrderId = order.OrderId,
                 Name = line.Name,
                 Description = line.Description,
                 Category = line.Category,
@@ -56,9 +54,9 @@ public class OrderRepository : IOrderRepository
         };
 
         await _context.Orders.AddAsync(orderEntity, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken); //insert
+        await _context.SaveChangesAsync(cancellationToken);
 
-        return orderId;
+        return order.OrderId;
     }
 
     public async Task<OrderQueryResult?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
