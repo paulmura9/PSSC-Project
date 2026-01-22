@@ -18,17 +18,8 @@ public sealed record ShipmentStatus
     public static readonly ShipmentStatus Scheduled = new("Scheduled");
     public static readonly ShipmentStatus Dispatched = new("Dispatched");
     public static readonly ShipmentStatus Delivered = new("Delivered");
-    public static readonly ShipmentStatus Cancelled = new("Cancelled");
-    public static readonly ShipmentStatus Returned = new("Returned");
 
-    public bool CanBeCancelled => 
-        this == Created || this == Validated || this == Scheduled;
-
-    public bool CanBeModified => 
-        this == Created || this == Validated || this == Scheduled;
-
-    public bool IsTerminal => 
-        this == Delivered || this == Cancelled || this == Returned;
+    public bool IsTerminal => this == Delivered;
 
     public override string ToString() => Value;
 }

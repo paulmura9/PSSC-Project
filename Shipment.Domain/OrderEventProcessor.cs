@@ -9,17 +9,16 @@ namespace Shipment.Domain;
 
 /// <summary>
 /// Background service that listens to Order events from Service Bus and processes shipments
-/// Uses AbstractEventHandler pattern from Lab
 /// </summary>
 public class OrderEventProcessor : BackgroundService
 {
     private readonly ServiceBusProcessor _processor;
-    private readonly OrderPlacedEventHandler _handler;
+    private readonly OrderStateChangedHandler _handler;
     private readonly ILogger<OrderEventProcessor> _logger;
 
     public OrderEventProcessor(
         ServiceBusClient serviceBusClient,
-        OrderPlacedEventHandler handler,
+        OrderStateChangedHandler handler,
         ILogger<OrderEventProcessor> logger)
     {
         _handler = handler;
@@ -31,7 +30,7 @@ public class OrderEventProcessor : BackgroundService
             subscriptionName: SubscriptionNames.OrderProcessor,
             new ServiceBusProcessorOptions
             {
-                AutoCompleteMessages = false,
+                AutoCompleteMessages = false,   //procesez unu pe rand
                 MaxConcurrentCalls = 1
             });
     }
@@ -48,6 +47,7 @@ public class OrderEventProcessor : BackgroundService
         _logger.LogInformation("Waiting for order events from Service Bus...");
         _logger.LogInformation("========================================");
         
+        //pornesc ascultarea
         await _processor.StartProcessingAsync(stoppingToken);
 
         // Keep the service running
@@ -62,6 +62,7 @@ public class OrderEventProcessor : BackgroundService
 
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
     {
+        //extrag mesajul/json (CONSUM)
         string messageBody = args.Message.Body.ToString();
         
         _logger.LogInformation("========================================");
@@ -76,6 +77,7 @@ public class OrderEventProcessor : BackgroundService
 
             if (result.Success)
             {
+                //marchez mesajul ca procesat cu succes
                 await args.CompleteMessageAsync(args.Message);
                 _logger.LogInformation("Message processed successfully");
             }

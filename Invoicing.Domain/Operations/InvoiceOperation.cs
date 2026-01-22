@@ -17,14 +17,12 @@ public abstract class InvoiceOperation : InvoiceOperationWithState<object>
     protected virtual IInvoice OnCalculated(CalculatedInvoice invoice) => invoice;
     protected virtual IInvoice OnPersisted(PersistedInvoice invoice) => invoice;
     protected virtual IInvoice OnPublished(PublishedInvoice invoice) => invoice;
-    protected virtual IInvoice OnCancelled(CancelledInvoice invoice) => invoice;
     protected virtual IInvoice OnInvalid(InvalidInvoice invoice) => invoice;
 
     protected override IInvoice OnCreated(CreatedInvoice invoice, object? state) => OnCreated(invoice);
     protected override IInvoice OnCalculated(CalculatedInvoice invoice, object? state) => OnCalculated(invoice);
     protected override IInvoice OnPersisted(PersistedInvoice invoice, object? state) => OnPersisted(invoice);
     protected override IInvoice OnPublished(PublishedInvoice invoice, object? state) => OnPublished(invoice);
-    protected override IInvoice OnCancelled(CancelledInvoice invoice, object? state) => OnCancelled(invoice);
     protected override IInvoice OnInvalid(InvalidInvoice invoice, object? state) => OnInvalid(invoice);
 }
 
@@ -41,7 +39,6 @@ public abstract class InvoiceOperationWithState<TState> where TState : class
             CalculatedInvoice calculated => OnCalculated(calculated, state),
             PersistedInvoice persisted => OnPersisted(persisted, state),
             PublishedInvoice published => OnPublished(published, state),
-            CancelledInvoice cancelled => OnCancelled(cancelled, state),
             InvalidInvoice invalid => OnInvalid(invalid, state),
             _ => invoice
         };
@@ -51,7 +48,6 @@ public abstract class InvoiceOperationWithState<TState> where TState : class
     protected virtual IInvoice OnCalculated(CalculatedInvoice invoice, TState? state) => invoice;
     protected virtual IInvoice OnPersisted(PersistedInvoice invoice, TState? state) => invoice;
     protected virtual IInvoice OnPublished(PublishedInvoice invoice, TState? state) => invoice;
-    protected virtual IInvoice OnCancelled(CancelledInvoice invoice, TState? state) => invoice;
     protected virtual IInvoice OnInvalid(InvalidInvoice invoice, TState? state) => invoice;
 }
 

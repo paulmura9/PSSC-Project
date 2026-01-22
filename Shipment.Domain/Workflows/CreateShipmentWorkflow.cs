@@ -27,14 +27,14 @@ public class CreateShipmentWorkflow
     public CreateShipmentWorkflow(ILogger<CreateShipmentWorkflow> logger, IShipmentRepository? repository = null)
     {
         _logger = logger;
-        _repository = repository;
+        _repository = repository; //pt salvare in db
     }
 
     /// <summary>
     /// Executes the shipment creation workflow (Lab pattern)
     /// Returns IShipmentSentEvent using ToEvent()
     /// </summary>
-    public async Task<IShipmentSentEvent> ExecuteAsync(
+    public async Task<IShipmentWorkflowResult> ExecuteAsync(
         CreateShipmentCommand command,
         CancellationToken cancellationToken = default)
     {
@@ -42,7 +42,7 @@ public class CreateShipmentWorkflow
         {
             _logger.LogInformation("Starting shipment creation for Order: {OrderId}", command.OrderId);
 
-            // Step 1: Create initial shipment state
+            // Step 1: Create initial shipment state (VO)
             var createdShipment = new CreatedShipment(
                 orderId: command.OrderId,
                 userId: command.UserId,
@@ -77,7 +77,7 @@ public class CreateShipmentWorkflow
                     orderPlacedAt: scheduled.OrderPlacedAt,
                     persistedAt: DateTime.UtcNow);
 
-                // Map to save data DTO
+                // Map to save data DTO  (VO->string)
                 var saveData = new ShipmentSaveData
                 {
                     ShipmentId = persisted.ShipmentId,
@@ -99,7 +99,8 @@ public class CreateShipmentWorkflow
                         LineTotal = l.LineTotal.Value
                     }).ToList()
                 };
-
+                
+                //salvez in db
                 await _repository.SaveShipmentAsync(saveData, cancellationToken);
                 _logger.LogInformation("Shipment persisted: {ShipmentId}", persisted.ShipmentId);
 
@@ -113,7 +114,7 @@ public class CreateShipmentWorkflow
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating shipment for Order: {OrderId}", command.OrderId);
-            return new ShipmentSendFailedEvent
+            return new ShipmentCreatedFailedEvent
             {
                 OrderId = command.OrderId,
                 Reasons = new[] { ex.Message }
@@ -128,7 +129,7 @@ public class CreateShipmentWorkflow
     private static IShipment ExecuteBusinessLogic(CreatedShipment createdShipment, bool isPremium)
     {
         IShipment shipment = new CalculateShippingCostOperation().Transform(createdShipment, PremiumStatus.Create(isPremium));
-        shipment = new ScheduleShipmentOperation().Transform(shipment);
+        shipment = new ScheduleShipmentOperation().Transform(shipment); //genereaza tracking no
         return shipment;
     }
 }

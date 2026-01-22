@@ -26,7 +26,7 @@ public record OrderPlacedEvent : IOrderPlacedEvent
     public string Phone { get; }
     public string? Email { get; }
     public DateTime OccurredAt { get; }
-    
+
     // For backwards compatibility
     public decimal TotalPrice => Total;
 

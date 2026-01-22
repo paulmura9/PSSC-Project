@@ -6,8 +6,5 @@ namespace Ordering.Domain.Models;
 public static class OrderStatus
 {
     public const string Placed = "Placed";
-    public const string Cancelled = "Cancelled";
-    public const string Returned = "Returned";
-    public const string Modified = "Modified";
 }
 

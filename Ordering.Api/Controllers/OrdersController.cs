@@ -13,21 +13,15 @@ namespace Ordering.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly PlaceOrderWorkflow _placeOrderWorkflow;
-    private readonly CancelOrderWorkflow _cancelOrderWorkflow;
-    private readonly ReturnOrderWorkflow _returnOrderWorkflow;
     private readonly IProductRepository _productRepository;
     private readonly ILogger<OrdersController> _logger;
 
     public OrdersController(
         PlaceOrderWorkflow placeOrderWorkflow,
-        CancelOrderWorkflow cancelOrderWorkflow,
-        ReturnOrderWorkflow returnOrderWorkflow,
         IProductRepository productRepository,
         ILogger<OrdersController> logger)
     {
         _placeOrderWorkflow = placeOrderWorkflow;
-        _cancelOrderWorkflow = cancelOrderWorkflow;
-        _returnOrderWorkflow = returnOrderWorkflow;
         _productRepository = productRepository;
         _logger = logger;
     }
@@ -155,78 +149,6 @@ public class OrdersController : ControllerBase
                 LineTotal = l.LineTotal.Value
             }).ToList()
         });
-    }
-
-    /// <summary>
-    /// Cancels an existing order
-    /// </summary>
-    /// <param name="id">Order ID to cancel</param>
-    /// <param name="request">Cancellation reason</param>
-    [HttpPost("{id:guid}/cancel")]
-    [ProducesResponseType(typeof(CancelOrderResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(PlaceOrderErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CancelOrder(Guid id, [FromBody] CancelOrderRequest request, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Received cancel order request for OrderId: {OrderId}, Reason: {Reason}", id, request.Reason);
-
-        var command = new CancelOrderCommand(id, request.Reason);
-        var result = await _cancelOrderWorkflow.ExecuteAsync(command, cancellationToken);
-
-        return result switch
-        {
-            OrderCancelledSucceededEvent success => Ok(new CancelOrderResponse
-            {
-                OrderId = success.OrderId,
-                Status = "Cancelled",
-                Reason = success.Reason,
-                CancelledAt = success.CancelledAt
-            }),
-            OrderCancellationFailedEvent failure => BadRequest(new PlaceOrderErrorResponse
-            {
-                Errors = new List<string> { failure.FailureReason }
-            }),
-            _ => StatusCode(500, new PlaceOrderErrorResponse
-            {
-                Errors = new List<string> { "An unexpected error occurred" }
-            })
-        };
-    }
-
-    /// <summary>
-    /// Returns an existing order (after delivery)
-    /// </summary>
-    /// <param name="id">Order ID to return</param>
-    /// <param name="request">Return reason</param>
-    [HttpPost("{id:guid}/return")]
-    [ProducesResponseType(typeof(ReturnOrderResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(PlaceOrderErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ReturnOrder(Guid id, [FromBody] ReturnOrderRequest request, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Received return order request for OrderId: {OrderId}, Reason: {Reason}", id, request.Reason);
-
-        var command = new ReturnOrderCommand(id, request.Reason);
-        var result = await _returnOrderWorkflow.ExecuteAsync(command, cancellationToken);
-
-        return result switch
-        {
-            OrderReturnSucceededEvent success => Ok(new ReturnOrderResponse
-            {
-                OrderId = success.OrderId,
-                Status = "Returned",
-                Reason = success.ReturnReason,
-                ReturnedAt = success.ReturnedAt
-            }),
-            OrderReturnFailedEvent failure => BadRequest(new PlaceOrderErrorResponse
-            {
-                Errors = new List<string> { failure.FailureReason }
-            }),
-            _ => StatusCode(500, new PlaceOrderErrorResponse
-            {
-                Errors = new List<string> { "An unexpected error occurred" }
-            })
-        };
     }
 }
 

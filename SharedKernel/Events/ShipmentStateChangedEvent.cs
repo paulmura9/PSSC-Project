@@ -8,7 +8,7 @@ namespace SharedKernel;
 public sealed record ShipmentStateChangedEvent : IntegrationEvent
 {
     /// <summary>
-    /// Current state: Created, ShippingCostCalculated, Scheduled, Dispatched, Delivered, Cancelled, Returned
+    /// Current state: Scheduled, Priority
     /// </summary>
     public string ShipmentState { get; init; } = string.Empty;
     
@@ -53,14 +53,9 @@ public sealed record ShipmentStateChangedEvent : IntegrationEvent
     public decimal TotalPrice => Subtotal;
     
     public List<LineItemDto> Lines { get; init; } = new();
-    
-    /// <summary>
-    /// Optional reason for Cancel/Return
-    /// </summary>
-    public string? Reason { get; init; }
 
     public ShipmentStateChangedEvent() : base(Guid.NewGuid(), DateTime.UtcNow) { }
-    
+    //generaza guid si data automat, din interfata
     public ShipmentStateChangedEvent(Guid eventId, DateTime occurredAt) : base(eventId, occurredAt) { }
 }
 

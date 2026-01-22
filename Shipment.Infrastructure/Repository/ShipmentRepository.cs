@@ -43,7 +43,6 @@ public class ShipmentRepository : IShipmentRepository
             TotalWithShipping = shipment.TotalWithShipping,
             Status = shipment.Status,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
             Lines = shipment.Lines.Select(l => new ShipmentLineEntity
             {
                 ShipmentLineId = l.ShipmentLineId,
@@ -95,29 +94,10 @@ public class ShipmentRepository : IShipmentRepository
         if (shipment != null)
         {
             shipment.Status = newStatus;
-            shipment.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
 
-    public async Task CancelByOrderIdAsync(Guid orderId, string reason, CancellationToken cancellationToken = default)
-    {
-        var shipment = await _context.Shipments
-            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken);
-        
-        if (shipment != null)
-        {
-            // Business rule: Can only cancel if not yet dispatched
-            var cancellableStatuses = new[] { "Created", "Validated", "Scheduled", "Pending" };
-            
-            if (cancellableStatuses.Contains(shipment.Status))
-            {
-                shipment.Status = "Cancelled";
-                shipment.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }
-    }
 
     public async Task UpdateStatusByOrderIdAsync(Guid orderId, string newStatus, CancellationToken cancellationToken = default)
     {
@@ -127,7 +107,6 @@ public class ShipmentRepository : IShipmentRepository
         if (shipment != null)
         {
             shipment.Status = newStatus;
-            shipment.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

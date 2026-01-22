@@ -7,23 +7,22 @@ using Shipment.Domain.Workflows;
 namespace Shipment.Domain.Handlers;
 
 /// <summary>
-/// Handler for OrderPlacedEvent - creates shipments from orders
-/// Uses AbstractEventHandler pattern from Lab
+/// Handler for OrderStateChangedEvent - creates shipments from orders
 /// </summary>
-public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
+public class OrderStateChangedHandler : AbstractEventHandler<OrderStateChangedEventDto>
 {
     private readonly CreateShipmentWorkflow _workflow;
     private readonly IEventBus _eventBus;
     private readonly IEventHistoryService _eventHistory;
-    private readonly ILogger<OrderPlacedEventHandler> _logger;
+    private readonly ILogger<OrderStateChangedHandler> _logger;
+    
+    public override string[] EventTypes => new[] { "OrderStateChanged" }; //ce tipuri de evenimete proceseaza
 
-    public override string[] EventTypes => new[] { "OrderPlaced", "OrderStateChanged" };
-
-    public OrderPlacedEventHandler(
+    public OrderStateChangedHandler(
         CreateShipmentWorkflow workflow,
         IEventBus eventBus,
         IEventHistoryService eventHistory,
-        ILogger<OrderPlacedEventHandler> logger)
+        ILogger<OrderStateChangedHandler> logger)
     {
         _workflow = workflow;
         _eventBus = eventBus;
@@ -31,8 +30,9 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
         _logger = logger;
     }
 
-    protected override async Task<EventProcessingResult> OnHandleAsync(OrderPlacedEventDto orderEvent, CancellationToken cancellationToken)
+    protected override async Task<EventProcessingResult> OnHandleAsync(OrderStateChangedEventDto orderEvent, CancellationToken cancellationToken)
     {
+        //orderEvent e deserilizat adica obiect
         _logger.LogInformation("Order Event Parsed Successfully:");
         _logger.LogInformation("  - Order ID: {OrderId}", orderEvent.OrderId);
         _logger.LogInformation("  - User ID: {UserId}", orderEvent.UserId);
@@ -51,6 +51,7 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
             .ToList()
             .AsReadOnly();
 
+        //comanda pt workflow
         var command = new CreateShipmentCommand(
             orderEvent.OrderId,
             orderEvent.UserId,
@@ -63,21 +64,21 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
 
         _logger.LogInformation("Processing shipment for Order: {OrderId}...", orderEvent.OrderId);
 
-        // Execute workflow - returns IShipmentSentEvent (Lab pattern)
+        // Execute workflow - returns IShipmentWorkflowResult
         var result = await _workflow.ExecuteAsync(command, cancellationToken);
 
-        // Handle result based on event type (Lab pattern)
+        // Handle result based on event type
         return result switch
         {
-            ShipmentSentEvent success => await HandleSuccessAsync(success, orderEvent, cancellationToken),
-            ShipmentSendFailedEvent failed => await HandleFailureAsync(failed, orderEvent, cancellationToken),
+            ShipmentCreatedSuccessEvent success => await HandleSuccessAsync(success, orderEvent, cancellationToken),
+            ShipmentCreatedFailedEvent failed => await HandleFailureAsync(failed, orderEvent, cancellationToken),
             _ => EventProcessingResult.Failed("Unknown event type returned from workflow")
         };
     }
 
     private async Task<EventProcessingResult> HandleSuccessAsync(
-        ShipmentSentEvent success, 
-        OrderPlacedEventDto orderEvent, 
+        ShipmentCreatedSuccessEvent success,
+        OrderStateChangedEventDto orderEvent, 
         CancellationToken cancellationToken)
     {
         _logger.LogInformation("========================================");
@@ -100,7 +101,7 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
             Subtotal = orderEvent.Subtotal,
             DiscountAmount = orderEvent.DiscountAmount,
             TotalAfterDiscount = orderEvent.TotalPrice,
-            ShippingCost = success.TotalPrice - orderEvent.TotalPrice, // Calculate from difference
+            ShippingCost = success.TotalPrice - orderEvent.TotalPrice,
             TotalWithShipping = success.TotalPrice,
             PaymentMethod = orderEvent.PaymentMethod,
             Lines = orderEvent.Lines.Select(l => new LineItemDto(
@@ -114,13 +115,14 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
             OccurredAt = DateTime.UtcNow
         };
 
+        //public pe service bus
         await _eventBus.PublishAsync(TopicNames.Shipments, shipmentEvent, cancellationToken);
         _logger.LogInformation("ShipmentStateChangedEvent published to topic '{Topic}'", TopicNames.Shipments);
 
         // Save event to CSV history
         await _eventHistory.SaveEventAsync(
             orderEvent,
-            eventType: "OrderPlaced",
+            eventType: "OrderStateChanged",
             source: TopicNames.Orders,
             orderId: orderEvent.OrderId.ToString(),
             status: "Processed"
@@ -131,8 +133,8 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
     }
 
     private async Task<EventProcessingResult> HandleFailureAsync(
-        ShipmentSendFailedEvent failed, 
-        OrderPlacedEventDto orderEvent, 
+        ShipmentCreatedFailedEvent failed,
+        OrderStateChangedEventDto orderEvent, 
         CancellationToken cancellationToken)
     {
         var errorMessage = string.Join(", ", failed.Reasons);
@@ -146,7 +148,7 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
         // Save failed event to CSV
         await _eventHistory.SaveEventAsync(
             orderEvent,
-            eventType: "OrderPlaced",
+            eventType: "OrderStateChanged",
             source: TopicNames.Orders,
             orderId: orderEvent.OrderId.ToString(),
             status: $"Failed: {errorMessage}"
@@ -155,5 +157,3 @@ public class OrderPlacedEventHandler : AbstractEventHandler<OrderPlacedEventDto>
         return EventProcessingResult.Failed(errorMessage);
     }
 }
-
-

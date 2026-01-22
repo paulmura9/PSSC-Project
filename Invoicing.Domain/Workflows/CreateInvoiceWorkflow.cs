@@ -29,7 +29,7 @@ public class CreateInvoiceWorkflow
         _logger = logger;
     }
 
-    public async Task<IInvoiceGeneratedEvent> ExecuteAsync(
+    public async Task<IInvoiceWorkflowResult> ExecuteAsync(
         CreateInvoiceCommand command,
         CancellationToken cancellationToken = default)
     {
@@ -74,7 +74,7 @@ public class CreateInvoiceWorkflow
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating invoice for Shipment: {ShipmentId}", command.ShipmentId);
-            return new InvoiceGenerationFailedEvent
+            return new InvoiceCreatedFailedEvent
             {
                 ShipmentId = command.ShipmentId,
                 OrderId = command.OrderId,

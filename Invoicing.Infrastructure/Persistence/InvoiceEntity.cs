@@ -18,7 +18,6 @@ public class InvoiceEntity
     public DateTime InvoiceDate { get; set; }
     public DateTime DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
     public ICollection<InvoiceLineEntity> Lines { get; set; } = new List<InvoiceLineEntity>();
 }
 

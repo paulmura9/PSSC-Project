@@ -1,11 +1,9 @@
 using Microsoft.Extensions.Logging;
 using SharedKernel;
 using SharedKernel.Messaging;
-using SharedKernel.ServiceBus;
 using Invoicing.Models;
 using Invoicing.Workflows;
 using Invoicing.Events;
-using Invoicing.Operations;
 using SharedKernel.Invoicing;
 
 namespace Invoicing.Handlers;
@@ -22,7 +20,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
     private readonly IEventBus _eventBus;
     private readonly ILogger<ShipmentStateChangedHandler> _logger;
 
-    public override string[] EventTypes => new[] { "ShipmentStateChanged", "Scheduled", "Priority", "Cancelled", "Returned" };
+    public override string[] EventTypes => new[] { "ShipmentStateChanged", "Scheduled", "Priority" };
 
     public ShipmentStateChangedHandler(
         CreateInvoiceWorkflow workflow,
@@ -52,8 +50,6 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
             var result = shipmentEvent.ShipmentState switch
             {
                 "Scheduled" or "Priority" => await HandleScheduledAsync(shipmentEvent, cancellationToken),
-                "Cancelled" => await HandleCancelledAsync(shipmentEvent, cancellationToken),
-                "Returned" => await HandleReturnedAsync(shipmentEvent, cancellationToken),
                 _ => HandleUnknownState(shipmentEvent.ShipmentState)
             };
 
@@ -210,14 +206,14 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
         // Handle result based on event type
         return result switch
         {
-            InvoiceGeneratedEvent success => await HandleSuccessAsync(success, shipmentEvent, cancellationToken),
-            InvoiceGenerationFailedEvent failure => HandleFailureAsync(failure),
+            InvoiceCreatedSuccessEvent success => await HandleSuccessAsync(success, shipmentEvent, cancellationToken),
+            InvoiceCreatedFailedEvent failure => HandleFailureAsync(failure),
             _ => EventProcessingResult.Failed("Unknown workflow result")
         };
     }
 
     private async Task<EventProcessingResult> HandleSuccessAsync(
-        InvoiceGeneratedEvent success,
+        InvoiceCreatedSuccessEvent success,
         ShipmentStateChangedEvent shipmentEvent,
         CancellationToken cancellationToken)
     {
@@ -242,7 +238,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
         return EventProcessingResult.Succeeded();
     }
 
-    private EventProcessingResult HandleFailureAsync(InvoiceGenerationFailedEvent failure)
+    private EventProcessingResult HandleFailureAsync(InvoiceCreatedFailedEvent failure)
     {
         _logger.LogWarning("========================================");
         _logger.LogWarning("INVOICE CREATION FAILED");
@@ -253,37 +249,6 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
         return EventProcessingResult.Failed(string.Join(", ", failure.Reasons));
     }
 
-    private async Task<EventProcessingResult> HandleCancelledAsync(ShipmentStateChangedEvent shipmentEvent, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Handling Shipment Cancelled - Cancelling Invoice for OrderId: {OrderId}", shipmentEvent.OrderId);
-
-        // Update invoice status to Cancelled
-        await _repository.UpdateStatusByOrderIdAsync(shipmentEvent.OrderId, "Cancelled", cancellationToken);
-
-        _logger.LogInformation("========================================");
-        _logger.LogInformation("INVOICE CANCELLED");
-        _logger.LogInformation("  Order ID: {OrderId}", shipmentEvent.OrderId);
-        _logger.LogInformation("  Reason: {Reason}", shipmentEvent.Reason ?? "Order cancelled");
-        _logger.LogInformation("========================================");
-
-        return EventProcessingResult.Succeeded();
-    }
-
-    private async Task<EventProcessingResult> HandleReturnedAsync(ShipmentStateChangedEvent shipmentEvent, CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Handling Shipment Returned - Creating Credit Note for OrderId: {OrderId}", shipmentEvent.OrderId);
-
-        // Update invoice status to Returned (credit note issued)
-        await _repository.UpdateStatusByOrderIdAsync(shipmentEvent.OrderId, "CreditNoteIssued", cancellationToken);
-
-        _logger.LogInformation("========================================");
-        _logger.LogInformation("CREDIT NOTE ISSUED");
-        _logger.LogInformation("  Order ID: {OrderId}", shipmentEvent.OrderId);
-        _logger.LogInformation("  Reason: {Reason}", shipmentEvent.Reason ?? "Order returned");
-        _logger.LogInformation("========================================");
-
-        return EventProcessingResult.Succeeded();
-    }
 
     private EventProcessingResult HandleUnknownState(string state)
     {
@@ -293,7 +258,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
 
     private async Task SaveInvoiceToDatabase(
         ShipmentStateChangedEvent shipment, 
-        InvoiceGeneratedEvent invoice, 
+        InvoiceCreatedSuccessEvent invoice,
         CalculatedInvoiceData data, 
         CancellationToken cancellationToken)
     {
@@ -321,7 +286,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
 
     private async Task PublishInvoiceCreatedEvent(
         ShipmentStateChangedEvent shipment, 
-        InvoiceGeneratedEvent invoice, 
+        InvoiceCreatedSuccessEvent invoice,
         CalculatedInvoiceData data,
         CancellationToken cancellationToken)
     {
@@ -355,7 +320,7 @@ public class ShipmentStateChangedHandler : AbstractEventHandler<ShipmentStateCha
         _logger.LogInformation("========================================");
     }
 
-    private void PrintInvoice(ShipmentStateChangedEvent shipment, InvoiceGeneratedEvent invoice, CalculatedInvoiceData data)
+    private void PrintInvoice(ShipmentStateChangedEvent shipment, InvoiceCreatedSuccessEvent invoice, CalculatedInvoiceData data)
     {
         var customerType = shipment.PremiumSubscription ? "PREMIUM (Free Shipping)" : "REGULAR";
         var hasDiscount = shipment.DiscountAmount > 0;

@@ -12,7 +12,7 @@ public sealed class ScheduleShipmentOperation : ShipmentOperation
     protected override IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment)
     {
         var shipmentId = Guid.NewGuid();
-        var trackingNumber = TrackingNumber.Generate();
+        var trackingNumber = TrackingNumber.Generate(); //generez tracking no
 
         return new ScheduledShipment(
             shipmentId: shipmentId,

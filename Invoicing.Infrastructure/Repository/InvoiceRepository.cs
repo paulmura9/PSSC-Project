@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿using Microsoft.EntityFrameworkCore;
 using Invoicing.Infrastructure.Persistence;
 using SharedKernel.Invoicing;
 
@@ -46,7 +46,6 @@ public class InvoiceRepository : IInvoiceRepository
             InvoiceDate = invoice.InvoiceDate,
             DueDate = invoice.DueDate,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
             Lines = invoice.Lines.Select(l => new InvoiceLineEntity
             {
                 InvoiceLineId = l.InvoiceLineId,
@@ -100,7 +99,6 @@ public class InvoiceRepository : IInvoiceRepository
         if (invoice != null)
         {
             invoice.Status = newStatus;
-            invoice.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

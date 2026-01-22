@@ -26,7 +26,7 @@ public abstract class OrderOperationWithState<TState> : DomainOperation<IOrder, 
     {
         return Task.FromResult<IOrder>(order);
     }
-    
+
     protected virtual Task<IOrder> OnPricedAsync(PricedOrder order, TState state, CancellationToken cancellationToken)
     {
         return Task.FromResult<IOrder>(order);
@@ -41,6 +41,6 @@ public abstract class OrderOperationWithState<TState> : DomainOperation<IOrder, 
     {
         return Task.FromResult<IOrder>(order);
     }
-    
+
 }
 

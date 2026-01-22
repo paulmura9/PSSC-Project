@@ -11,7 +11,6 @@ public interface IShipmentRepository
     Task<ShipmentQueryResult?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(Guid shipmentId, string newStatus, CancellationToken cancellationToken = default);
     Task UpdateStatusByOrderIdAsync(Guid orderId, string newStatus, CancellationToken cancellationToken = default);
-    Task CancelByOrderIdAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

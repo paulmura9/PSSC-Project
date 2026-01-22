@@ -1,14 +1,23 @@
-namespace SharedKernel;
+﻿using SharedKernel;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Shipment.Domain.Events;
 
 /// <summary>
-/// DTO for Order Placed events - uses primitive types for JSON serialization
-/// Contract between Ordering and Shipment services
+/// DTO for deserializing OrderStateChangedEvent from Service Bus
+/// Used by Shipment to consume order events from Ordering
+/// Instantiated via JSON deserialization, not directly
 /// </summary>
-public sealed record OrderPlacedEventDto : IntegrationEvent
+public sealed record OrderStateChangedEventDto : IntegrationEvent
 {
     public Guid OrderId { get; init; }
     public Guid UserId { get; init; }
     public bool PremiumSubscription { get; init; }
+    
+    /// <summary>
+    /// Order status (Placed)
+    /// </summary>
+    public string OrderStatus { get; init; } = "Placed";
     
     /// <summary>
     /// Subtotal before discount
@@ -47,11 +56,9 @@ public sealed record OrderPlacedEventDto : IntegrationEvent
     
     public List<LineItemDto> Lines { get; init; } = new();
     
-    // Legacy property for backwards compatibility
     public decimal TotalPrice => Total;
 
-    public OrderPlacedEventDto() : base() { }
+    public OrderStateChangedEventDto() : base() { }
     
-    public OrderPlacedEventDto(Guid eventId, DateTime occurredAt) : base(eventId, occurredAt) { }
+    public OrderStateChangedEventDto(Guid eventId, DateTime occurredAt) : base(eventId, occurredAt) { }
 }
-

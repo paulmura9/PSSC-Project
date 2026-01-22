@@ -9,14 +9,11 @@ using SharedKernel.ServiceBus;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configure EF Core with Azure SQL using extension method (like Shipment/Invoicing)
 var connectionString = builder.Configuration.GetConnectionString("psscDB");
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
@@ -28,7 +25,7 @@ else
 }
 
 // Register event bus (singleton - manages internal Service Bus client)
-// Falls back to NoOpEventBus if ServiceBus connection string is not configured
+// Configurează Azure Service Bus
 var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
 if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
 {
@@ -61,39 +58,8 @@ builder.Services.AddScoped<PublishOrderPlacedOperation>();
 
 // Register workflows
 builder.Services.AddScoped<PlaceOrderWorkflow>();
-builder.Services.AddScoped<CancelOrderWorkflow>();
-builder.Services.AddScoped<ReturnOrderWorkflow>();
 
 var app = builder.Build();
-
-// Run database migrations for new columns
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
-    try
-    {
-        Console.WriteLine("Checking for pending column migrations...");
-        
-        // Add missing columns using raw SQL
-        var migrations = new[]
-        {
-            "IF COL_LENGTH('ordering.Orders', 'PickupMethod') IS NULL ALTER TABLE [ordering].[Orders] ADD [PickupMethod] NVARCHAR(32) NOT NULL DEFAULT 'HomeDelivery'",
-            "IF COL_LENGTH('ordering.Orders', 'PickupPointId') IS NULL ALTER TABLE [ordering].[Orders] ADD [PickupPointId] NVARCHAR(64) NULL",
-            "IF COL_LENGTH('ordering.Orders', 'PaymentMethod') IS NULL ALTER TABLE [ordering].[Orders] ADD [PaymentMethod] NVARCHAR(32) NOT NULL DEFAULT 'CashOnDelivery'"
-        };
-
-        foreach (var sql in migrations)
-        {
-            await context.Database.ExecuteSqlRawAsync(sql);
-        }
-        
-        Console.WriteLine("Database column migrations completed!");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Migration warning: {ex.Message}");
-    }
-}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -3,15 +3,15 @@ using System.Text;
 namespace Invoicing.Events;
 
 /// <summary>
-/// Events that occur when an invoice is generated
+/// Interface for invoice workflow result events
 /// </summary>
-public interface IInvoiceGeneratedEvent { }
+public interface IInvoiceWorkflowResult { }
 
 /// <summary>
-/// Event indicating invoice was generated successfully
+/// Event indicating invoice was created successfully (internal workflow result)
 /// Values are calculated in RON. EUR is derived for presentation.
 /// </summary>
-public record InvoiceGeneratedEvent : IInvoiceGeneratedEvent
+public record InvoiceCreatedSuccessEvent : IInvoiceWorkflowResult
 {
     public Guid InvoiceId { get; init; }
     public string InvoiceNumber { get; init; } = string.Empty;
@@ -21,7 +21,7 @@ public record InvoiceGeneratedEvent : IInvoiceGeneratedEvent
     public decimal SubTotal { get; init; }
     public decimal Tax { get; init; }
     public decimal TotalAmount { get; init; }
-    public DateTime GeneratedAt { get; init; }
+    public DateTime CreatedAt { get; init; }
     
     // Currency support - DB stores RON, EUR is derived
     public string Currency { get; init; } = "RON";
@@ -32,7 +32,7 @@ public record InvoiceGeneratedEvent : IInvoiceGeneratedEvent
     {
         var sb = new StringBuilder();
         sb.AppendLine();
-        sb.AppendLine("===== Invoice Generated =====");
+        sb.AppendLine("===== Invoice Created =====");
         sb.AppendLine($"Invoice: {InvoiceNumber} ({InvoiceId})");
         sb.AppendLine($"Order ID: {OrderId}");
         sb.AppendLine($"Shipment ID: {ShipmentId}");
@@ -42,16 +42,16 @@ public record InvoiceGeneratedEvent : IInvoiceGeneratedEvent
         sb.AppendLine($"Total: {TotalAmount:N2} RON");
         if (TotalInEur.HasValue)
             sb.AppendLine($"Total (EUR): {TotalInEur.Value:N2} EUR");
-        sb.AppendLine($"Generated: {GeneratedAt:yyyy-MM-dd HH:mm:ss}");
-        sb.AppendLine("=============================");
+        sb.AppendLine($"Created: {CreatedAt:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine("===========================");
         return sb.ToString();
     }
 }
 
 /// <summary>
-/// Event indicating invoice generation failed
+/// Event indicating invoice creation failed (internal workflow result)
 /// </summary>
-public record InvoiceGenerationFailedEvent : IInvoiceGeneratedEvent
+public record InvoiceCreatedFailedEvent : IInvoiceWorkflowResult
 {
     public Guid ShipmentId { get; init; }
     public Guid OrderId { get; init; }
@@ -69,4 +69,3 @@ public record InvoiceGenerationFailedEvent : IInvoiceGeneratedEvent
         return sb.ToString();
     }
 }
-

@@ -14,8 +14,6 @@ public enum ShipmentState
     Scheduled,              // Scheduled for dispatch (tracking number assigned)
     Dispatched,             // Sent out for delivery
     Delivered,              // Successfully delivered
-    Cancelled,              // Cancelled (from OrderStateChangedEvent with Status=Cancelled)
-    Returned,               // Returned by customer
     Persisted               // Saved to database (internal state)
 }
 
@@ -28,18 +26,18 @@ public static class Shipment
     /// <summary>
     /// Defines allowed state transitions for Shipment
     /// Business rules:
-    /// - Created → ShippingCostCalculated (calculate shipping) or Cancelled
-    /// - ShippingCostCalculated → Scheduled (assign tracking) or Cancelled
-    /// - Scheduled → Dispatched (sent out) or Cancelled
-    /// - Dispatched → Delivered (successful) or Returned (customer returned)
+    /// - Created → ShippingCostCalculated (calculate shipping)
+    /// - ShippingCostCalculated → Scheduled (assign tracking)
+    /// - Scheduled → Dispatched (sent out)
+    /// - Dispatched → Delivered (successful)
     /// - Persisted → Scheduled (continue processing)
     /// </summary>
     public static readonly StateTransitionMap<ShipmentState> Transitions = new StateTransitionMap<ShipmentState>()
-        .Allow(ShipmentState.Created, ShipmentState.ShippingCostCalculated, ShipmentState.Cancelled, ShipmentState.Persisted)
-        .Allow(ShipmentState.ShippingCostCalculated, ShipmentState.Scheduled, ShipmentState.Cancelled)
-        .Allow(ShipmentState.Scheduled, ShipmentState.Dispatched, ShipmentState.Cancelled)
-        .Allow(ShipmentState.Dispatched, ShipmentState.Delivered, ShipmentState.Returned)
-        .Allow(ShipmentState.Persisted, ShipmentState.Scheduled, ShipmentState.Cancelled);
+        .Allow(ShipmentState.Created, ShipmentState.ShippingCostCalculated, ShipmentState.Persisted)
+        .Allow(ShipmentState.ShippingCostCalculated, ShipmentState.Scheduled)
+        .Allow(ShipmentState.Scheduled, ShipmentState.Dispatched)
+        .Allow(ShipmentState.Dispatched, ShipmentState.Delivered)
+        .Allow(ShipmentState.Persisted, ShipmentState.Scheduled);
 
     /// <summary>
     /// Marker interface for all shipment states
@@ -53,8 +51,6 @@ public static class Shipment
             ScheduledShipment => ShipmentState.Scheduled,
             DispatchedShipment => ShipmentState.Dispatched,
             DeliveredShipment => ShipmentState.Delivered,
-            CancelledShipment => ShipmentState.Cancelled,
-            ReturnedShipment => ShipmentState.Returned,
             PersistedShipment => ShipmentState.Persisted,
             _ => throw new InvalidOperationException($"Unknown shipment state: {GetType().Name}")
         };
@@ -235,57 +231,6 @@ public static class Shipment
         public DateTime DeliveredAt { get; }
     }
 
-    /// <summary>
-    /// Represents a cancelled shipment
-    /// </summary>
-    public record CancelledShipment : IShipment
-    {
-        public CancelledShipment(
-            Guid orderId,
-            Guid userId,
-            string reason,
-            DateTime cancelledAt)
-        {
-            OrderId = orderId;
-            UserId = userId;
-            Reason = reason;
-            CancelledAt = cancelledAt;
-        }
-
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public string Reason { get; }
-        public DateTime CancelledAt { get; }
-    }
-
-    /// <summary>
-    /// Represents a returned shipment
-    /// </summary>
-    public record ReturnedShipment : IShipment
-    {
-        public ReturnedShipment(
-            Guid shipmentId,
-            Guid orderId,
-            Guid userId,
-            TrackingNumber trackingNumber,
-            string returnReason,
-            DateTime returnedAt)
-        {
-            ShipmentId = shipmentId;
-            OrderId = orderId;
-            UserId = userId;
-            TrackingNumber = trackingNumber;
-            ReturnReason = returnReason;
-            ReturnedAt = returnedAt;
-        }
-
-        public Guid ShipmentId { get; }
-        public Guid OrderId { get; }
-        public Guid UserId { get; }
-        public TrackingNumber TrackingNumber { get; }
-        public string ReturnReason { get; }
-        public DateTime ReturnedAt { get; }
-    }
 
     /// <summary>
     /// Represents a shipment that has been persisted to the database
@@ -331,44 +276,34 @@ public static class Shipment
     /// <summary>
     /// Extension method to convert shipment state to event (Lab-style pattern)
     /// </summary>
-    public static IShipmentSentEvent ToEvent(this IShipment shipment) => shipment switch
+    public static IShipmentWorkflowResult ToEvent(this IShipment shipment) => shipment switch
     {
-        CreatedShipment _ => new ShipmentSendFailedEvent 
+        CreatedShipment _ => new ShipmentCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected created state" } 
         },
-        ShippingCostCalculatedShipment _ => new ShipmentSendFailedEvent 
+        ShippingCostCalculatedShipment _ => new ShipmentCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected shipping cost calculated state" } 
         },
-        ScheduledShipment _ => new ShipmentSendFailedEvent 
+        ScheduledShipment _ => new ShipmentCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected scheduled state" } 
         },
-        DispatchedShipment _ => new ShipmentSendFailedEvent 
+        DispatchedShipment _ => new ShipmentCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected dispatched state" } 
         },
-        PersistedShipment persisted => new ShipmentSentEvent
+        PersistedShipment persisted => new ShipmentCreatedSuccessEvent
         {
             ShipmentId = persisted.ShipmentId,
             OrderId = persisted.OrderId,
             UserId = persisted.UserId,
             TrackingNumber = persisted.TrackingNumber.Value,
             TotalPrice = persisted.TotalWithShipping.Value,
-            SentAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         },
-        CancelledShipment cancelled => new ShipmentSendFailedEvent 
-        { 
-            OrderId = cancelled.OrderId,
-            Reasons = new[] { cancelled.Reason } 
-        },
-        ReturnedShipment returned => new ShipmentSendFailedEvent 
-        { 
-            OrderId = returned.OrderId,
-            Reasons = new[] { returned.ReturnReason } 
-        },
-        DeliveredShipment _ => new ShipmentSendFailedEvent 
+        DeliveredShipment _ => new ShipmentCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected delivered state" } 
         },

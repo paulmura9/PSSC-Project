@@ -18,16 +18,12 @@ public abstract class ShipmentOperation : ShipmentOperationWithState<object>
     protected virtual IShipment OnScheduled(ScheduledShipment shipment) => shipment;
     protected virtual IShipment OnDispatched(DispatchedShipment shipment) => shipment;
     protected virtual IShipment OnPersisted(PersistedShipment shipment) => shipment;
-    protected virtual IShipment OnCancelled(CancelledShipment shipment) => shipment;
-    protected virtual IShipment OnReturned(ReturnedShipment shipment) => shipment;
 
     protected override IShipment OnCreated(CreatedShipment shipment, object? state) => OnCreated(shipment);
     protected override IShipment OnShippingCostCalculated(ShippingCostCalculatedShipment shipment, object? state) => OnShippingCostCalculated(shipment);
     protected override IShipment OnScheduled(ScheduledShipment shipment, object? state) => OnScheduled(shipment);
     protected override IShipment OnDispatched(DispatchedShipment shipment, object? state) => OnDispatched(shipment);
     protected override IShipment OnPersisted(PersistedShipment shipment, object? state) => OnPersisted(shipment);
-    protected override IShipment OnCancelled(CancelledShipment shipment, object? state) => OnCancelled(shipment);
-    protected override IShipment OnReturned(ReturnedShipment shipment, object? state) => OnReturned(shipment);
 }
 
 /// <summary>
@@ -44,8 +40,6 @@ public abstract class ShipmentOperationWithState<TState> where TState : class
             ScheduledShipment scheduled => OnScheduled(scheduled, state),
             DispatchedShipment dispatched => OnDispatched(dispatched, state),
             PersistedShipment persisted => OnPersisted(persisted, state),
-            CancelledShipment cancelled => OnCancelled(cancelled, state),
-            ReturnedShipment returned => OnReturned(returned, state),
             _ => shipment
         };
     }
@@ -55,7 +49,6 @@ public abstract class ShipmentOperationWithState<TState> where TState : class
     protected virtual IShipment OnScheduled(ScheduledShipment shipment, TState? state) => shipment;
     protected virtual IShipment OnDispatched(DispatchedShipment shipment, TState? state) => shipment;
     protected virtual IShipment OnPersisted(PersistedShipment shipment, TState? state) => shipment;
-    protected virtual IShipment OnCancelled(CancelledShipment shipment, TState? state) => shipment;
-    protected virtual IShipment OnReturned(ReturnedShipment shipment, TState? state) => shipment;
 }
+
 

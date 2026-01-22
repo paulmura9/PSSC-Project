@@ -13,8 +13,7 @@ public enum InvoiceState
     Invalid,       // Validation failed (for consistency with DDD pattern)
     Calculated,    // Subtotal + VAT/taxes + total + invoiceNumber generated
     Persisted,     // Saved to DB (has InvoiceId)
-    Published,     // InvoiceStateChanged sent to Service Bus
-    Cancelled      // Invoice cancelled (due to order cancellation/return)
+    Published      // InvoiceStateChanged sent to Service Bus
 }
 
 /// <summary>
@@ -28,8 +27,7 @@ public static class Invoice
     public static readonly StateTransitionMap<InvoiceState> Transitions = new StateTransitionMap<InvoiceState>()
         .Allow(InvoiceState.Created, InvoiceState.Calculated)
         .Allow(InvoiceState.Calculated, InvoiceState.Persisted)
-        .Allow(InvoiceState.Persisted, InvoiceState.Published, InvoiceState.Cancelled)
-        .Allow(InvoiceState.Published, InvoiceState.Cancelled); // Can cancel after publish (storno)
+        .Allow(InvoiceState.Persisted, InvoiceState.Published);
 
     public interface IInvoice : IStateMachine<InvoiceState>
     {
@@ -40,7 +38,6 @@ public static class Invoice
             CalculatedInvoice => InvoiceState.Calculated,
             PersistedInvoice => InvoiceState.Persisted,
             PublishedInvoice => InvoiceState.Published,
-            CancelledInvoice => InvoiceState.Cancelled,
             _ => throw new InvalidOperationException($"Unknown invoice state: {GetType().Name}")
         };
 
@@ -291,44 +288,6 @@ public static class Invoice
         }
     }
 
-    /// <summary>
-    /// Represents a cancelled invoice (storno)
-    /// </summary>
-    public record CancelledInvoice : IInvoice
-    {
-        public Guid InvoiceId { get; }
-        public InvoiceNumber InvoiceNumber { get; }
-        public Guid OrderId { get; }
-        public string CancellationReason { get; }
-        public DateTime CancelledAt { get; }
-
-        public CancelledInvoice(
-            Guid invoiceId,
-            InvoiceNumber invoiceNumber,
-            Guid orderId,
-            string cancellationReason,
-            DateTime cancelledAt)
-        {
-            InvoiceId = invoiceId;
-            InvoiceNumber = invoiceNumber;
-            OrderId = orderId;
-            CancellationReason = cancellationReason;
-            CancelledAt = cancelledAt;
-        }
-
-        /// <summary>
-        /// Create from PersistedInvoice when order is cancelled/returned
-        /// </summary>
-        public static CancelledInvoice FromPersisted(PersistedInvoice persisted, string reason)
-        {
-            return new CancelledInvoice(
-                persisted.InvoiceId,
-                persisted.InvoiceNumber,
-                persisted.OrderId,
-                reason,
-                DateTime.UtcNow);
-        }
-    }
 
     /// <summary>
     /// Represents an invalid invoice (validation failed)
@@ -355,22 +314,22 @@ public static class Invoice
     /// <summary>
     /// Extension method to convert invoice state to event (Lab-style pattern)
     /// </summary>
-    public static Events.IInvoiceGeneratedEvent ToEvent(this IInvoice invoice) => invoice switch
+    public static Events.IInvoiceWorkflowResult ToEvent(this IInvoice invoice) => invoice switch
     {
-        CreatedInvoice _ => new Events.InvoiceGenerationFailedEvent 
+        CreatedInvoice _ => new Events.InvoiceCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected created state" } 
         },
-        InvalidInvoice invalid => new Events.InvoiceGenerationFailedEvent 
+        InvalidInvoice invalid => new Events.InvoiceCreatedFailedEvent
         { 
             OrderId = invalid.OrderId,
             Reasons = invalid.Reasons 
         },
-        CalculatedInvoice _ => new Events.InvoiceGenerationFailedEvent 
+        CalculatedInvoice _ => new Events.InvoiceCreatedFailedEvent
         { 
             Reasons = new[] { "Unexpected calculated state" } 
         },
-        PersistedInvoice persisted => new Events.InvoiceGeneratedEvent
+        PersistedInvoice persisted => new Events.InvoiceCreatedSuccessEvent
         {
             InvoiceId = persisted.InvoiceId,
             InvoiceNumber = persisted.InvoiceNumber.Value,
@@ -380,12 +339,12 @@ public static class Invoice
             SubTotal = persisted.SubTotal.Value,
             Tax = persisted.Tax.Value,
             TotalAmount = persisted.TotalAmount.Value,
-            GeneratedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
             Currency = persisted.DisplayCurrency.Value,
             TotalInRon = persisted.TotalInRon,
             TotalInEur = persisted.TotalInEur
         },
-        PublishedInvoice published => new Events.InvoiceGeneratedEvent
+        PublishedInvoice published => new Events.InvoiceCreatedSuccessEvent
         {
             InvoiceId = published.InvoiceId,
             InvoiceNumber = published.InvoiceNumber.Value,
@@ -395,15 +354,10 @@ public static class Invoice
             SubTotal = published.SubTotal.Value,
             Tax = published.Tax.Value,
             TotalAmount = published.TotalAmount.Value,
-            GeneratedAt = published.PublishedAt,
+            CreatedAt = published.PublishedAt,
             Currency = published.DisplayCurrency.Value,
             TotalInRon = published.TotalInRon,
             TotalInEur = published.TotalInEur
-        },
-        CancelledInvoice cancelled => new Events.InvoiceGenerationFailedEvent 
-        { 
-            OrderId = cancelled.OrderId,
-            Reasons = new[] { $"Invoice cancelled: {cancelled.CancellationReason}" } 
         },
         _ => throw new NotImplementedException($"Unknown invoice state: {invoice.GetType().Name}")
     };

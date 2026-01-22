@@ -6,14 +6,13 @@ namespace Ordering.Domain.Events;
 
 /// <summary>
 /// Single event emitted by Ordering context
-/// Contains OrderStatus to indicate what happened (Placed, Cancelled, Returned, Modified)
+/// Contains OrderStatus = "Placed" when order is successfully placed
 /// This is the ONLY event published to "orders" topic
 /// </summary>
-/// pentru SB
 public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTime.UtcNow)
 {
     /// <summary>
-    /// Current status of the order: Placed, Cancelled, Returned, Modified
+    /// Current status of the order: Placed
     /// </summary>
     public string OrderStatus { get; init; } = string.Empty;
     
@@ -35,7 +34,7 @@ public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTi
     public decimal TotalPrice => Total;
     
     /// <summary>
-    /// Order lines (for Placed/Modified events)
+    /// Order lines
     /// </summary>
     public List<LineItemDto> Lines { get; init; } = new();
     
@@ -52,11 +51,6 @@ public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTi
     
     // Payment fields
     public string PaymentMethod { get; init; } = "CashOnDelivery";
-    
-    /// <summary>
-    /// Reason for Cancel/Return (optional)
-    /// </summary>
-    public string? Reason { get; init; }
 
 
     public override string ToString()
@@ -86,9 +80,6 @@ public record OrderStateChangedEvent() : IntegrationEvent(Guid.NewGuid(), DateTi
         if (DiscountAmount > 0)
             sb.AppendLine($"Discount: -{DiscountAmount:C}" + (!string.IsNullOrEmpty(VoucherCode) ? $" ({VoucherCode})" : ""));
         sb.AppendLine($"Total: {Total:C}");
-        
-        if (!string.IsNullOrEmpty(Reason))
-            sb.AppendLine($"Reason: {Reason}");
         
         sb.AppendLine("=============================");
         return sb.ToString();

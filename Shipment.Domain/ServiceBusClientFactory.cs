@@ -17,12 +17,12 @@ public class ServiceBusClientFactory : IAsyncDisposable
     }
 
     /// <summary>
-    /// Client for consuming from orders topic
+    /// Client for consuming from orders topic, getter pt orders
     /// </summary>
     public ServiceBusClient OrdersClient => _ordersClient;
 
     /// <summary>
-    /// Client for publishing to shipments topic
+    /// Client for publishing to shipments topic, getter pt shipments
     /// </summary>
     public ServiceBusClient ShipmentsClient => _shipmentsClient;
 

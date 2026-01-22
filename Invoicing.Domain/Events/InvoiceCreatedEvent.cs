@@ -1,4 +1,6 @@
-namespace SharedKernel;
+﻿using SharedKernel;
+
+namespace Invoicing.Events;
 
 /// <summary>
 /// Event published when an invoice is created successfully

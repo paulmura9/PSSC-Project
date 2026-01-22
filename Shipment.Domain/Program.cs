@@ -1,14 +1,11 @@
-using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedKernel;
 using SharedKernel.ServiceBus;
-using SharedKernel.Shipment;
 using Shipment.Domain;
 using Shipment.Domain.Handlers;
 using Shipment.Domain.Workflows;
 using Shipment.Infrastructure;
-using Shipment.Infrastructure.Repository;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -32,22 +29,22 @@ else
     // Register ServiceBusClientFactory for consuming from orders topic and publishing to shipments
     builder.Services.AddSingleton(new ServiceBusClientFactory(ordersConnectionString!, shipmentsConnectionString!));
     
-    // Register ServiceBusClient for consuming (used by OrderEventProcessor)
+    // Inregistrează ServiceBusClient pt CONSUMARE
     builder.Services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClientFactory>().OrdersClient);
     
-    // Register IEventBus for publishing to shipments topic
+    // Inregistrează IEventBus pt PUBLICARE
     builder.Services.AddSingleton<IEventBus>(sp => 
         new AzureServiceBusEventBus(shipmentsConnectionString!, sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AzureServiceBusEventBus>>()));
     
     // Register workflow and handler (AbstractEventHandler pattern)
     builder.Services.AddScoped<CreateShipmentWorkflow>();
-    builder.Services.AddScoped<OrderPlacedEventHandler>();
+    builder.Services.AddScoped<OrderStateChangedHandler>();
     
-    // Register background service
+    // Register background service (porneste automat)
     builder.Services.AddHostedService<OrderEventProcessor>();
 }
 
-// Configure EF Core with Azure SQL using extension method
+// Configurează baza de date
 var dbConnectionString = builder.Configuration["ConnectionStrings:psscDB"];
 if (!string.IsNullOrWhiteSpace(dbConnectionString))
 {

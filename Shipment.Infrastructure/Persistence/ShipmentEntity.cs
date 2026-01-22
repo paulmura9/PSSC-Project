@@ -14,7 +14,6 @@ public class ShipmentEntity
     public string TrackingNumber { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty; // Pending, Shipped, Delivered
     public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
 
     // Navigation property for shipment lines
     public ICollection<ShipmentLineEntity> Lines { get; set; } = new List<ShipmentLineEntity>();
